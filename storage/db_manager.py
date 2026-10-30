@@ -1,6 +1,5 @@
-# DB 관리
 import sqlite3
-from document_info import DocumentInfo
+from .db_info import DocumentInfo
 
 
 class Repository:
