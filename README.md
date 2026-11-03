@@ -1,9 +1,12 @@
 # Document Search Demo
 
-기준: 2026-10-30 · 작업 폴더: `C:\Capstone\document-search-demo-v1`
+기준: 2026-11-03 · 작업 폴더: `C:\Capstone\document-search-demo-v1`
 
 팀원 로더·인코더·DB를 연결한 로컬 문서 검색 데모다. PDF·PPTX의 추출 가능한 본문을 문장으로 검색한다.
 이미지 파일과 PPTX 내부 이미지는 **이미지 유사도 검색(임시 구현)**으로 검색한다. 팀원 인코더의 벡터를 임시 코사인 비교 함수에 전달한다.
+
+main `3542252`의 DB·텍스트 인코더·본문 임베더를 반영했다. 이미지와 이미지용 문장 인코더는 같은 모델 객체를 공유한다.
+DB의 상대 import 수정으로 루트 `document_info.py`는 제거했다. [병합 내역](docs/MAIN_MERGE_2026-11-03.md)
 
 ## 실행
 

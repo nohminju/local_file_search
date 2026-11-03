@@ -35,10 +35,8 @@ class ConnectionTests(unittest.TestCase):
         self.image_encoder.encode.return_value = np.array([0., 1.])
         self.document_encoder = Mock(wraps=DocumentEncoder(self.image_encoder))
         self.query_encoder = Mock()
-        self.query_encoder.encode_text.return_value = np.array([0., 1.])
-        self.embedder = object.__new__(DocumentEmbedder)
-        self.embedder.model = Mock(wraps=ModelOutput())
-        self.embedder.chunks, self.embedder.embeddings = [], None
+        self.query_encoder.encode_text.return_value = np.array([[0., 1.]])
+        self.embedder = DocumentEmbedder(model=Mock(wraps=ModelOutput()))
         self.repository = Repository(str(self.folder / 'metadata.db'))
         self.service = DocumentSearch(DocumentLoader(), self.image_encoder, self.document_encoder,
                                       self.embedder, self.query_encoder, self.repository)

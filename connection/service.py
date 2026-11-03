@@ -83,7 +83,8 @@ class DocumentSearch:
         if mode == 'documents':
             return self.document_embedder.model.encode([query])[0]
         if mode == 'images':
-            return self.query_encoder.encode_text(query)
+            # 새 입력 인코더는 한 문장도 (1, 512)로 반환한다. 첫 행이 그 문장의 벡터다.
+            return self.query_encoder.encode_text(query)[0]
         raise ValueError("검색 대상은 documents 또는 images입니다.")
 
     def search(self, query, top_k=5, mode='documents'):
