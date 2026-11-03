@@ -3,10 +3,12 @@
 ## 분석
 
 `app.build_service()` → `DocumentSearch.analyze(folder)` 순서로 실행한다.
+KoreanTextEncoder에는 `image_encoder.model`과 같은 모델의 tokenizer를 전달한다. OpenCLIP 모델을 중복 로딩하지 않는다.
+DocumentEmbedder도 model을 전달받을 수 있지만 현재 앱은 별도 ko-SRoBERTa를 직접 준비한다.
 
 1. `DocumentScanner.scan_files()`가 지원하는 파일 경로를 모은다.
 2. `DocumentLoader.process_file(path)`가 확장자를 구분해 DocumentChunk 목록을 반환한다.
-3. 본문이 있는 청크는 모아서 `DocumentEmbedder.embed_chunks(chunks)`에 전달한다.
+3. 본문이 있는 청크만 모아서 `DocumentEmbedder.embed_chunks(chunks)`에 전달한다. 원본이 texts에서 빈 항목을 거르더라도 chunks와 벡터의 순서가 어긋나지 않게 한다.
 4. 이미지 파일의 PIL 이미지는 ImageEncoder, 문서에서 꺼낸 이미지는 DocumentEncoder에 전달한다.
 5. 파일 정보는 DocumentInfo로 만들어 `Repository.save(info)`에 저장한다. 반환된 ID를 경로·이미지 벡터와 연결한다.
 
@@ -21,6 +23,10 @@
 같은 파일의 여러 청크가 나오면 가장 높은 점수 하나를 사용하고, DB에서 이름·경로를 조회한다.
 반환값은 `(DocumentInfo, 점수)` 목록이며 기본 최대 결과 수는 5개다.
 
-이미지 검색: `encode_query(query, mode='images')` → KoreanTextEncoder → 임시 `search_images()` → DB 조회 순서다.
+이미지 검색: `search()`에서 `KoreanTextEncoder.encode_text(query)[0]` → 임시 `search_images()` → DB 조회 순서다.
+새 `encode_text()`는 한 문장도 `(1, 512)`를 반환한다. 연결 코드의 `[0]`이 첫 행을 꺼내 비교 함수에 필요한 `(512,)`로 맞춘다.
+기존 model_name·pretrained 생성자 인자와 to_numpy 옵션은 새 입력 인코더에서 제거됐다.
+
+분석 중 본문 청크는 지역 변수 `text_chunks`로 모은다. 인코딩 후에는 DocumentEmbedder가 보관한 `chunks`를 사용한다.
 임시 함수는 이미지·문장 벡터의 코사인 유사도를 계산해 파일별 최고 점수 순으로 반환한다. 비교할 이미지가 없으면 빈 목록이다.
 본문과 이미지는 서로 다른 모델 공간이므로 점수를 합치지 않는다. 담당자 이미지 비교 구현을 받으면 임시 함수를 교체한다.

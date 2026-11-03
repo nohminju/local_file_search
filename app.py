@@ -1,6 +1,7 @@
 """실제 팀원 로더·인코더·DB를 조립하여 실행한다."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import open_clip
 
 from file_loader.document_loader import DocumentLoader
 from file_encoder.image_encoder import ImageEncoder
@@ -17,7 +18,11 @@ def build_service():
     pretrained = 'laion5b_s13b_b90k'
     image_encoder = ImageEncoder(model_name=model_name, pretrained=pretrained)
     document_encoder = DocumentEncoder(image_encoder=image_encoder)
-    query_encoder = KoreanTextEncoder(model_name=model_name, pretrained=pretrained)
+    # 새 입력 인코더는 이미지 모델을 공유한다. 같은 모델을 두 번 읽지 않는다.
+    query_encoder = KoreanTextEncoder(
+        model=image_encoder.model,
+        tokenizer=open_clip.get_tokenizer(model_name),
+    )
 
     # 문서 본문은 별도 ko-SRoBERTa로 인코딩·비교한다.
     document_embedder = DocumentEmbedder()

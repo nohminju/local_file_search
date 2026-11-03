@@ -9,10 +9,11 @@
 | database/db_info.py / db_manager.py | 팀원 파일 자료형·DB |
 | connection/service.py / app.py / gui/window.py | 내 연결·실행·화면 코드 |
 | similarity/temporary_image_similarity.py | 사용자 요청으로 추가한 임시 이미지 비교 구현. 담당자 구현으로 교체 예정 |
-| document_info.py | 내 import 연결 파일 |
 | docs / study / tests | 설명·공부 자료·연결 검증 |
 
+이번 main 병합의 db_info.py·db_manager.py·text_encoder.py·document_embedder.py는 원본과 바이트 단위로 같다.
 팀원 알고리즘 본문은 유지한다. document_encoder.py는 가져올 때 import 경로만 현재 위치에 맞춘 상태다.
+DB 원본의 상대 import가 수정되어 불필요해진 루트 document_info.py도 제거했다.
 내 임시 로더·빈 인코더는 제거했다. 이미지 비교는 사용자 요청으로 임시 구현을 다시 연결했으며 파일명·화면에 임시 상태를 표시한다.
 
 공유 전에는 `git status`와 `git diff`로 추가·수정·삭제 목록을 확인한다.

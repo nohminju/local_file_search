@@ -1,4 +1,3 @@
-# 데이터 형식 정의
 from dataclasses import dataclass
 from typing import Optional
 

@@ -11,9 +11,9 @@
 | created_at / updated_at | 정보 생성 시각 / 파일 수정 시각, UTC 문자열 |
 | file_id | 저장 후 DB가 반환하는 번호 |
 
-루트의 `document_info.py`는 같은 클래스를 전달하는 import 연결 파일이다.
-DB 원본이 `from document_info import DocumentInfo`를 사용해서 필요하다.
-팀원 DB의 import를 `database.db_info`로 수정할 때 제거할 수 있다. 클래스 정의는 중복되지 않는다.
+최신 DB 원본은 `from .db_info import DocumentInfo`를 사용한다. 점 하나는 같은 패키지 안에서 찾는다는 뜻이다.
+현재 구조에서는 `database/db_info.py`를 바로 가져오므로 루트 연결 파일 `document_info.py`는 제거했다.
+이번 db_info 변경은 맨 위 주석 삭제뿐이며 필드와 DB 테이블 구조는 바뀌지 않았다.
 
 테이블은 `document_metadata`다. Repository는 `save()`와 `find_by_id()`로 저장·조회한다.
 현재 앱은 임시 DB를 사용하며 벡터는 메모리에 둔다. 재실행 후 검색을 복원하지 않는다.

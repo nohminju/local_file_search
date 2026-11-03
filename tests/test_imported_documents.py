@@ -68,8 +68,7 @@ class ImportedDocumentTests(unittest.TestCase):
 
     def test_embedder_search_uses_its_own_model(self):
         # 인코더 출력만 테스트 대역이다. 검색 수식은 가져온 원본을 그대로 실행한다.
-        embedder = object.__new__(DocumentEmbedder)
-        embedder.model = Mock()
+        embedder = DocumentEmbedder(model=Mock())
         embedder.model.encode.side_effect = [np.array([[1., 0.], [0., 1.]]), np.array([[0., 1.]])]
         chunks = [DocumentChunk('a.pdf', 'a.pdf', 1, 'first', 'pdf'),
                   DocumentChunk('b.pdf', 'b.pdf', 2, 'second', 'pdf')]
