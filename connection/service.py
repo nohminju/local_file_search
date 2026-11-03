@@ -19,7 +19,6 @@ class DocumentSearch:
         self.repository = repository
         self.file_ids = {}  # 실제 파일 경로 → DB가 반환한 번호
         self.image_vectors = []  # (파일 번호, OpenCLIP 벡터)
-        self.text_chunks = []  # ko-SRoBERTa로 인코딩할 본문 청크
 
     def analyze(self, folder_path):
         folder = Path(folder_path).expanduser().resolve()
@@ -29,6 +28,7 @@ class DocumentSearch:
             raise ValueError("재분석은 새 서비스로 시작하세요.")
 
         documents, failures, pending_images = [], [], []
+        text_chunks = []  # 분석 중에만 모으고, 인코딩 후에는 본문 모델이 보관한다.
         for file_path in DocumentScanner(str(folder)).scan_files():
             path = Path(file_path)
             # 팀원 로더가 확장자를 보고 이미지·PDF·PPTX 읽기를 선택한다.
@@ -62,13 +62,13 @@ class DocumentSearch:
                         vectors.append(self.image_encoder.encode(chunk.image))
                     else:
                         vectors.append(self.document_encoder.encode(chunk.image))
-            self.text_chunks.extend(chunk for chunk in chunks if chunk.text.strip())
+            text_chunks.extend(chunk for chunk in chunks if chunk.text.strip())
             documents.append(info)
             pending_images.append(vectors)
 
         # 본문은 원본 DocumentEmbedder가 청크 목록을 한 번에 인코딩한다.
-        if self.text_chunks:
-            self.document_embedder.embed_chunks(self.text_chunks)
+        if text_chunks:
+            self.document_embedder.embed_chunks(text_chunks)
 
         for info, vectors in zip(documents, pending_images):
             file_id = self.repository.save(info)
@@ -76,27 +76,17 @@ class DocumentSearch:
             self.image_vectors.extend((file_id, vector) for vector in vectors)
         return documents, failures
 
-    def encode_query(self, query, mode='documents'):
-        query = query.strip()
-        if not query:
-            raise ValueError("검색 문장을 입력하세요.")
-        if mode == 'documents':
-            return self.document_embedder.model.encode([query])[0]
-        if mode == 'images':
-            # 새 입력 인코더는 한 문장도 (1, 512)로 반환한다. 첫 행이 그 문장의 벡터다.
-            return self.query_encoder.encode_text(query)[0]
-        raise ValueError("검색 대상은 documents 또는 images입니다.")
-
     def search(self, query, top_k=5, mode='documents'):
         query = query.strip()
         if not query or top_k <= 0:
             return []
 
         if mode == 'documents':
-            if not self.text_chunks:
+            chunks = self.document_embedder.chunks
+            if not chunks:
                 return []
             # 원본 search는 입력 문장도 같은 ko-SRoBERTa로 인코딩한다.
-            hits = self.document_embedder.search(query, top_k=len(self.text_chunks))
+            hits = self.document_embedder.search(query, top_k=len(chunks))
             ranked = []
             seen = set()
             for hit in hits:
@@ -109,7 +99,8 @@ class DocumentSearch:
             if not self.image_vectors:
                 return []
             # 임시 이미지 비교: 문장도 이미지와 같은 OpenCLIP 공간으로 바꾼다.
-            query_vector = self.encode_query(query, mode='images')
+            # 한 문장도 (1, 512)로 반환되므로 첫 행을 꺼낸다.
+            query_vector = self.query_encoder.encode_text(query)[0]
             ranked = search_images(query_vector, self.image_vectors, top_k)
         else:
             raise ValueError("검색 대상은 documents 또는 images입니다.")

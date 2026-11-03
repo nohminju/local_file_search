@@ -69,7 +69,7 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual({d.file_name for d in documents}, {'apple.pdf', 'banana.pptx', 'photo.png'})
         self.assertEqual(failures, [])
         self.assertEqual(len(self.service.file_ids), 3)
-        self.assertEqual(len(self.service.text_chunks), 3)
+        self.assertEqual(len(self.embedder.chunks), 3)
         self.document_encoder.encode.assert_called_once()
         self.assertEqual(self.image_encoder.encode.call_count, 2)
         self.assertEqual(len(self.service.image_vectors), 2)
@@ -101,6 +101,7 @@ class ConnectionTests(unittest.TestCase):
         documents, failures = self.service.analyze(self.folder)
         self.assertEqual([d.file_name for d in documents], ['valid.png'])
         self.assertEqual([p.name for p, reason in failures], ['empty.pdf'])
+        self.assertEqual(self.service.search('본문 없음', mode='documents'), [])
 
     def test_model_error_is_not_saved_as_success(self):
         Image.new('RGB', (8, 8)).save(self.folder / 'photo.png')
