@@ -15,6 +15,9 @@
 현재 구조에서는 `database/db_info.py`를 바로 가져오므로 루트 연결 파일 `document_info.py`는 제거했다.
 이번 db_info 변경은 맨 위 주석 삭제뿐이며 필드와 DB 테이블 구조는 바뀌지 않았다.
 
+2026-11-04 정리: 동일한 storage/db_info.py 사본은 사용처가 없어 제거했다. 실제 자료형은 database/db_info.py 하나만 유지한다.
+
+
 테이블은 `document_metadata`다. Repository는 `save()`와 `find_by_id()`로 저장·조회한다.
 현재 앱은 임시 DB를 사용하며 벡터는 메모리에 둔다. 재실행 후 검색을 복원하지 않는다.
 같은 경로의 중복 저장은 오류가 나며 DB·벡터를 함께 되돌리는 기능은 없다.

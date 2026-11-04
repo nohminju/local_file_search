@@ -15,6 +15,6 @@
 | gui/window.py | 폴더 선택·분석·본문/임시 이미지 검색 화면 |
 | tests / study | 연결 검증 / 설명 포함 전체 코드 |
 
-최신 DocumentLoader에 이미지 읽기가 포함되어 별도 image_loader.py는 없다.
+현재 앱은 DocumentLoader로 이미지도 읽는다. 사용하지 않는 별도 image_loader.py와 루트의 중복 문서 로더·임베더는 제거했다.
 DocumentEncoder는 PDF 경로를 읽지 않는다. PDF 본문은 DocumentEmbedder로 전달한다.
 DB는 같은 database 폴더의 `.db_info`를 직접 가져오므로 루트의 `document_info.py`는 제거했다.
