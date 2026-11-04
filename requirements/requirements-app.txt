@@ -1,6 +1,0 @@
-# 팀원 의존성 파일을 유지하면서 실제 GUI 실행에 필요한 항목을 모은다.
--r requirements-db.txt
-Pillow>=12.3.0
-# 다국어 OpenCLIP 텍스트 모델의 tokenizer/model 지원
-transformers>=4.30,<5
-sentencepiece>=0.1.99
