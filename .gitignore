@@ -1,11 +1,10 @@
-# Python 실행 중 생성되는 캐시와 프로젝트 가상환경
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+*.db
+*.bin
+study/.ipynb_checkpoints/
 
-# 개발자별 편집기 설정
-.vscode/
-
-# GUI가 실제 실행 후 만드는 로컬 분석 보고서
-/reports/
+# 로컬 공부 자료는 GitHub 백업에서 제외
+study/

@@ -1,4 +1,0 @@
-# 팀원 모델 의존성 + 실제 DB/FAISS 연결 의존성.
--r requirements.txt
-numpy>=1.25,<3
-faiss-cpu==1.15.1

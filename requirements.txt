@@ -1,0 +1,12 @@
+# 이미지·입력 인코더 라이브러리 (SQLite와 Tkinter는 Python 기본 제공)
+torch>=2.0.0
+open_clip_torch>=2.20.0
+numpy>=1.25,<3
+transformers>=4.30,<5
+sentencepiece>=0.1.99
+
+# main에서 가져와 실행에 연결한 문서 로더·본문 인코더의 라이브러리
+pypdf
+python-pptx
+Pillow
+sentence-transformers>=3,<6
