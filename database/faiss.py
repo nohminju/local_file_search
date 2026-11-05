@@ -8,7 +8,7 @@ class FaissManager:
     def __init__(self, doc_dim=768, img_dim=512):
         self.dims = {'doc': doc_dim, 'img': img_dim}
         self.indices = {'doc': None, 'img': None}
-        self.file_ids = {'doc': [], 'img': []}
+        self.chunk_metas = {'doc': [], 'img': []}
 
     def _prep_vectors(self, vectors, target_dim):
         vectors = np.asarray(vectors, dtype=np.float32)
@@ -19,53 +19,93 @@ class FaissManager:
         faiss.normalize_L2(vectors)
         return vectors
 
-    def _add(self, key, vectors, file_ids):
-        if len(vectors) == 0:
+    def add_documents(self, vectors, chunks):
+        """
+        DocumentEmbedder.embeddings 와 DocumentChunk 리스트를 직접 전달받음
+        """
+        if len(vectors) == 0 or len(chunks) == 0:
             return
-        vectors = self._prep_vectors(vectors, self.dims[key])
+        vectors = self._prep_vectors(vectors, self.dims['doc'])
+
+        if self.indices['doc'] is None:
+            self.indices['doc'] = faiss.IndexFlatIP(self.dims['doc'])
+
+        self.indices['doc'].add(vectors)
         
-        if self.indices[key] is None:
-            self.indices[key] = faiss.IndexFlatIP(self.dims[key])
-            
-        self.indices[key].add(vectors)
-        self.file_ids[key].extend(file_ids)
+        for c in chunks:
+            self.chunk_metas['doc'].append({
+                "file_name": getattr(c, 'file_name', ''),
+                "file_path": getattr(c, 'file_path', ''),
+                "page_number": getattr(c, 'page_number', 1),
+                "text": getattr(c, 'text', '')
+            })
 
-    def add_documents(self, vectors, file_ids):
-        self._add('doc', vectors, file_ids)
+    def add_images(self, vectors, chunks):
+        """
+        이미지 임베딩 벡터와 DocumentChunk 리스트를 직접 전달받음
+        """
+        if len(vectors) == 0 or len(chunks) == 0:
+            return
+        vectors = self._prep_vectors(vectors, self.dims['img'])
 
-    def add_images(self, vectors, file_ids):
-        self._add('img', vectors, file_ids)
+        if self.indices['img'] is None:
+            self.indices['img'] = faiss.IndexFlatIP(self.dims['img'])
 
-    def _search(self, key, query_vector, top_k=5):
-        index = self.indices[key]
+        self.indices['img'].add(vectors)
+
+        for c in chunks:
+            self.chunk_metas['img'].append({
+                "file_name": getattr(c, 'file_name', ''),
+                "file_path": getattr(c, 'file_path', ''),
+                "page_number": getattr(c, 'page_number', 1)
+            })
+
+    def search_documents(self, query_vector, top_k=5):
+        index = self.indices['doc']
         if index is None or index.ntotal == 0 or top_k <= 0:
             return []
 
-        query = self._prep_vectors(query_vector, self.dims[key])
+        query = self._prep_vectors(query_vector, self.dims['doc'])
         scores, indices = index.search(query, min(top_k, index.ntotal))
 
-        return [(self.file_ids[key][i], float(s)) for s, i in zip(scores[0], indices[0]) if i >= 0]
-
-    def search_documents(self, query_vector, top_k=5):
-        return self._search('doc', query_vector, top_k)
+        results = []
+        for score, idx in zip(scores[0], indices[0]):
+            if idx >= 0:
+                results.append({
+                    "chunk": self.chunk_metas['doc'][idx],
+                    "score": float(score)
+                })
+        return results
 
     def search_images(self, query_vector, top_k=5):
-        return self._search('img', query_vector, top_k)
+        index = self.indices['img']
+        if index is None or index.ntotal == 0 or top_k <= 0:
+            return []
+
+        query = self._prep_vectors(query_vector, self.dims['img'])
+        scores, indices = index.search(query, min(top_k, index.ntotal))
+
+        results = []
+        for score, idx in zip(scores[0], indices[0]):
+            if idx >= 0:
+                results.append({
+                    "chunk": self.chunk_metas['img'][idx],
+                    "score": float(score)
+                })
+        return results
 
     def save(self, folder="faiss_data"):
         os.makedirs(folder, exist_ok=True)
         filenames = {'doc': 'documents.faiss', 'img': 'images.faiss'}
-        
+
         for key in ['doc', 'img']:
             if self.indices[key] is not None:
                 faiss.write_index(self.indices[key], os.path.join(folder, filenames[key]))
 
         with open(os.path.join(folder, "metadata.json"), "w", encoding="utf-8") as f:
             json.dump({
-                "dimension": self.dims['doc'],
-                "image_dimension": self.dims['img'],
-                "document_file_ids": self.file_ids['doc'],
-                "image_file_ids": self.file_ids['img']
+                "dims": self.dims,
+                "chunk_metas": self.chunk_metas
             }, f, ensure_ascii=False)
 
     def load(self, folder="faiss_data"):
@@ -76,15 +116,10 @@ class FaissManager:
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
 
-        self.dims['doc'] = meta.get("dimension") or meta.get("dims", {}).get("doc")
-        self.dims['img'] = meta.get("image_dimension") or meta.get("dims", {}).get("img")
-        self.file_ids['doc'] = meta.get("document_file_ids") or meta.get("file_ids", {}).get("doc", [])
-        self.file_ids['img'] = meta.get("image_file_ids") or meta.get("file_ids", {}).get("img", [])
+        self.dims = meta.get("dims", self.dims)
+        self.chunk_metas = meta.get("chunk_metas", {'doc': [], 'img': []})
 
         filenames = {'doc': 'documents.faiss', 'img': 'images.faiss'}
         for key in ['doc', 'img']:
             idx_path = os.path.join(folder, filenames[key])
-      
-            if not os.path.exists(idx_path):
-                idx_path = os.path.join(folder, f"{key}.faiss")
             self.indices[key] = faiss.read_index(idx_path) if os.path.exists(idx_path) else None
