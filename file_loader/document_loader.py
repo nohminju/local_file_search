@@ -55,6 +55,7 @@ class DocumentLoader:
         except Exception:
             return []
 
+    
     def load_pdf(self, file_path: str) -> List[DocumentChunk]:
         chunks: List[DocumentChunk] = []
         file_name = self._get_clean_filename(file_path)
@@ -62,6 +63,7 @@ class DocumentLoader:
         try:
             reader = PdfReader(file_path)
             for page_idx, page in enumerate(reader.pages, start=1):
+                # 기존 텍스트 추출
                 try:
                     text = page.extract_text() or ""
                     clean_text = text.strip()
@@ -74,11 +76,34 @@ class DocumentLoader:
                             chunk_type="pdf"
                         ))
                 except Exception:
-                    continue
+                    pass
+
+                # 추가: PDF 내부 이미지 추출
+                for image_file in page.images:
+                    try:
+                        image = Image.open(
+                            io.BytesIO(image_file.data)
+                        ).convert("RGB")
+
+                        if image.width < 100 or image.height < 100:
+                            continue
+
+                        chunks.append(DocumentChunk(
+                            file_name=file_name,
+                            file_path=file_path,
+                            page_number=page_idx,
+                            text="",
+                            chunk_type="image",
+                            image=image
+                        ))
+                    except Exception:
+                        continue
+
         except Exception:
             return []
 
         return chunks
+
 
     def load_pptx(self, file_path: str) -> List[DocumentChunk]:
         chunks: List[DocumentChunk] = []

@@ -1,4 +1,4 @@
-# 이미지·입력 인코더 라이브러리 (SQLite와 Tkinter는 Python 기본 제공)
+﻿# 이미지·입력 인코더 라이브러리 (SQLite와 Tkinter는 Python 기본 제공)
 torch>=2.0.0
 open_clip_torch>=2.20.0
 numpy>=1.25,<3
@@ -10,3 +10,4 @@ pypdf
 python-pptx
 Pillow
 sentence-transformers>=3,<6
+customtkinter>=5.2,<6
