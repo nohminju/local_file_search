@@ -1,5 +1,5 @@
 import sqlite3
-from document_info import DocumentInfo
+from database.db_info import DocumentInfo
 
 
 class Repository:
@@ -24,18 +24,33 @@ class Repository:
 
     def save(self, document):
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
+            conn.execute("""
                 INSERT INTO document_metadata (
                     file_path, file_name, file_extension,
                     file_size, file_hash, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(file_path) DO UPDATE SET
+                    file_name = excluded.file_name,
+                    file_extension = excluded.file_extension,
+                    file_size = excluded.file_size,
+                    file_hash = excluded.file_hash,
+                    updated_at = excluded.updated_at
             """, (
-                document.file_path, document.file_name,
-                document.file_extension, document.file_size,
-                document.file_hash, document.created_at,
+                document.file_path,
+                document.file_name,
+                document.file_extension,
+                document.file_size,
+                document.file_hash,
+                document.created_at,
                 document.updated_at
             ))
-            return cursor.lastrowid
+
+            row = conn.execute(
+                "SELECT file_id FROM document_metadata WHERE file_path = ?",
+                (document.file_path,)
+            ).fetchone()
+
+            return row[0]
 
     def find_by_id(self, file_id):
         with sqlite3.connect(self.db_path) as conn:
