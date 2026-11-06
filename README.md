@@ -52,12 +52,20 @@ PDF 페이지 전체 이미지화·OCR은 없다. PPTX의 여러 그림 누락�
 
 ## 사용 모델
 
+이미지 검색에는 **LAION-5B로 사전학습된 ViT-B/32–XLM-RoBERTa Base 기반 CLIP 모델**을 OpenCLIP 라이브러리로 불러와 사용한다. 이미지 인코더는 ViT-B/32, 텍스트 인코더는 XLM-RoBERTa Base다. [공식 모델 설명](https://huggingface.co/laion/CLIP-ViT-B-32-xlm-roberta-base-laion5B-s13B-b90k)
+
 | 용도 | 모델 | 벡터 차원 |
 |---|---|---|
 | 문서 본문·본문 검색어 | `jhgan/ko-sroberta-multitask` (ko-SRoBERTa) | 768 |
 | 이미지·이미지 검색어 | OpenCLIP `xlm-roberta-base-ViT-B-32`, 가중치 `laion5b_s13b_b90k` | 512 |
 
 본문 모델은 Sentence Transformers로 불러온다. 이미지와 이미지 검색어 인코더는 같은 OpenCLIP 모델 객체를 공유하며, 문서에서 추출한 이미지도 이 모델을 사용한다. FAISS는 만들어진 벡터의 유사도 검색을 담당한다. 모델 설정은 `app.py`, `similarity/document_embedder.py`, `file_encoder/image_encoder.py`, `query_encoder/text_encoder.py`에서 확인할 수 있다.
+
+## 이미지 모델 비교
+
+2026-11-06에 같은 이미지 7장·한국어 검색어 20개로 비교했다. 정답이 있는 18개는 두 모델 모두 1위 정답 18/18이었다. CPU·FP32·4스레드·3회 측정에서 기존/SigLIP 2의 이미지 7장 인코딩 중앙값은 각각 0.490/2.240초, 검색어 처리 중앙값은 65.2/115.6ms였다. 다운로드·준비·파일 읽기·DB·GUI 시간은 제외했다.
+
+이 소규모 자료에서는 품질 우위를 확인하지 못했고 기존 모델이 빨랐다. 앱 모델은 유지한다. [재실행 코드](tests/image_model_comparison.py) · [조건·전체 순위·원시 측정](tests/image_model_comparison_results.json) · [활동 기록](docs/ACTIVITY_LOG.md). 재실행에는 로컬 study 이미지가 필요하다.
 
 ## 검증
 
