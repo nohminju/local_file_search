@@ -11,3 +11,4 @@ python-pptx
 Pillow
 sentence-transformers>=3,<6
 customtkinter>=5.2,<6
+faiss-cpu

@@ -3,6 +3,7 @@ from io import BytesIO
 from pathlib import Path
 import gc
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
 
@@ -14,7 +15,8 @@ from pptx import Presentation
 from pptx.util import Inches
 
 from connection.service import DocumentSearch
-from database.db_manager import Repository
+from database.manager import Repository
+from database.faiss import FaissManager
 from file_loader.document_loader import DocumentLoader
 from file_encoder.document_encoder import DocumentEncoder
 from similarity.document_embedder import DocumentEmbedder
@@ -38,8 +40,9 @@ class ConnectionTests(unittest.TestCase):
         self.query_encoder.encode_text.return_value = np.array([[0., 1.]])
         self.embedder = DocumentEmbedder(model=Mock(wraps=ModelOutput()))
         self.repository = Repository(str(self.folder / 'metadata.db'))
+        self.vector_index = FaissManager(doc_dim=2, img_dim=2)
         self.service = DocumentSearch(DocumentLoader(), self.image_encoder, self.document_encoder,
-                                      self.embedder, self.query_encoder, self.repository)
+                                      self.embedder, self.query_encoder, self.repository, self.vector_index)
 
     def make_documents(self):
         writer = PdfWriter()
@@ -72,7 +75,8 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(len(self.embedder.chunks), 3)
         self.document_encoder.encode.assert_called_once()
         self.assertEqual(self.image_encoder.encode.call_count, 2)
-        self.assertEqual(len(self.service.image_vectors), 2)
+        self.assertEqual(self.vector_index.indices['doc'].ntotal, 3)
+        self.assertEqual(self.vector_index.indices['img'].ntotal, 2)
         for file_id in self.service.file_ids.values():
             self.assertIsNotNone(self.repository.find_by_id(file_id))
 
@@ -84,6 +88,7 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(len([r for r in results if r[0].file_name == 'apple.pdf']), 1)
         self.query_encoder.encode_text.assert_not_called()
         self.embedder.model.encode.assert_called_with(['apple query'])
+        self.assertEqual(len(self.service.search('apple query', top_k=2)), 2)
 
     def test_image_search_uses_clip_query_and_returns_file_info(self):
         self.make_documents()
@@ -94,6 +99,42 @@ class ConnectionTests(unittest.TestCase):
         self.assertTrue(all(abs(score - 1.0) < 1e-6 for info, score in results))
         self.query_encoder.encode_text.assert_called_once_with('yellow image')
         self.embedder.model.encode.assert_not_called()
+
+    def test_image_search_deduplicates_chunks_before_limiting_files(self):
+        self.make_documents()
+        self.service.analyze(self.folder)
+        chunk = next(c for c in self.vector_index.chunk_metas['img'] if c['file_name'] == 'photo.png')
+        self.vector_index.add_images(
+            [[1., 0.], [1., 0.]],
+            [SimpleNamespace(**chunk), SimpleNamespace(**chunk)],
+        )
+        self.query_encoder.encode_text.return_value = np.array([[1., 0.]])
+        results = self.service.search('yellow image', top_k=2, mode='images')
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0][0].file_name, 'photo.png')
+        self.assertEqual([score for _, score in results], [1., 0.])
+
+    def test_default_limit_is_five_files_and_can_be_overridden(self):
+        for number in range(7):
+            Image.new('RGB', (8, 8)).save(self.folder / f'photo{number}.png')
+        self.service.analyze(self.folder)
+        self.assertEqual(len(self.service.search('photo', mode='images')), 5)
+        self.assertEqual(len(self.service.search('photo', top_k=7, mode='images')), 7)
+
+    def test_image_only_analysis_leaves_document_index_empty(self):
+        Image.new('RGB', (8, 8)).save(self.folder / 'photo.png')
+        self.service.analyze(self.folder)
+        self.assertEqual(self.service.search('text', mode='documents'), [])
+        self.assertEqual(len(self.service.search('photo', mode='images')), 1)
+
+    def test_text_only_analysis_leaves_image_index_empty(self):
+        presentation = Presentation()
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = 'apple'
+        presentation.save(self.folder / 'text.pptx')
+        self.service.analyze(self.folder)
+        self.assertEqual(self.service.search('image', mode='images'), [])
+        self.assertEqual(len(self.service.search('apple', mode='documents')), 1)
 
     def test_broken_file_is_reported_without_stopping_other_files(self):
         Image.new('RGB', (8, 8)).save(self.folder / 'valid.png')
@@ -110,6 +151,24 @@ class ConnectionTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'model failed'):
             self.service.analyze(self.folder)
         self.repository.save.assert_not_called()
+
+    def test_loader_permission_error_is_reported_and_other_files_continue(self):
+        Image.new('RGB', (8, 8)).save(self.folder / 'blocked.png')
+        Image.new('RGB', (8, 8)).save(self.folder / 'valid.png')
+        loader = self.service.loader
+
+        def read_file(path):
+            if Path(path).name == 'blocked.png':
+                raise PermissionError('access denied')
+            return loader.process_file(path)
+
+        self.service.loader = Mock()
+        self.service.loader.process_file.side_effect = read_file
+        documents, failures = self.service.analyze(self.folder)
+        self.assertEqual([info.file_name for info in documents], ['valid.png'])
+        self.assertEqual([(path.name, reason) for path, reason in failures],
+                         [('blocked.png', 'access denied')])
+        self.assertEqual(self.vector_index.indices['img'].ntotal, 1)
 
     def test_empty_query_and_invalid_mode(self):
         self.assertEqual(self.service.search('   '), [])

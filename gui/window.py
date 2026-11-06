@@ -17,7 +17,7 @@ ctk.set_default_color_theme("blue")
 class DocumentSearchApp(ctk.CTk):
     """폴더 분석, 검색, 결과 표시를 담당하는 메인 GUI 창."""
 
-    def __init__(self, service_factory): #GUI 초기화 및 화면 구성, 작업 스레드 생성
+    def __init__(self, service_factory):
         super().__init__()
         self.service_factory = service_factory
         self.service = None
@@ -79,17 +79,17 @@ class DocumentSearchApp(ctk.CTk):
 
         self.after(100, self.poll_messages)
 
-    def show_message(self, text): #검색 결과 영역에 안내 메시지 표시
+    def show_message(self, text):
         self.clear_results()
         ctk.CTkLabel(self.results_frame, text=text, text_color="#9ba4b4", anchor="w").grid(
             row=0, column=0, sticky="ew", padx=12, pady=12
         )
 
-    def clear_results(self): #기존 검색 결과 및 화면 요소 삭제
+    def clear_results(self):
         for widget in self.results_frame.winfo_children():
             widget.destroy()
 
-    def set_busy(self, busy, text=""): #작업 진행 중 상태를 설정하고 버튼 상태를 업데이트하며 상태 메시지를 표시
+    def set_busy(self, busy, text=""):
         self.busy = busy
         self.folder_button.configure(state="disabled" if busy else "normal")
         self.analyze_button.configure(state="disabled" if busy else "normal")
@@ -97,7 +97,7 @@ class DocumentSearchApp(ctk.CTk):
         if text:
             self.status.configure(text=text)
 
-    def select_folder(self): #사용자가 검색할 폴더를 선택하고 경로 표시
+    def select_folder(self):
         folder = filedialog.askdirectory(parent=self)
         if not folder:
             return
@@ -108,7 +108,8 @@ class DocumentSearchApp(ctk.CTk):
         self.show_message("분석 버튼을 눌러 파일을 준비하세요.")
         self.status.configure(text="분석 대기 중")
 
-    def worker_loop(self): #별도 스레드에서 파일 분석 및 검색 작업 처리
+    def worker_loop(self):
+        """모델 작업은 이 스레드에서, 화면 갱신은 poll_messages에서 처리한다."""
         while True:
             job, args = self.tasks.get()
             try:
@@ -116,10 +117,10 @@ class DocumentSearchApp(ctk.CTk):
             except Exception as error:
                 self.messages.put((job, None, error))
 
-    def run_worker(self, job, *args): #작업을 별도 스레드에서 실행하도록 큐에 추가
+    def run_worker(self, job, *args):
         self.tasks.put((job, args))
 
-    def analyze(self): #사용자가 선택한 폴더를 분석하고 파일 준비 작업을 수행
+    def analyze(self):
         if self.busy:
             return
         if not self.folder:
@@ -130,12 +131,12 @@ class DocumentSearchApp(ctk.CTk):
         self.show_message("파일을 분석하고 있습니다...")
         self.run_worker(self.analyze_job, self.folder)
 
-    def analyze_job(self, folder): #검색 서비스 생성 및 실제 파일 분석 수행
+    def analyze_job(self, folder):
         service = self.service_factory()
         documents, failures = service.analyze(folder)
         return service, documents, failures
 
-    def search(self): #검색어와 검색 모드를 확인하고 검색 실행 요청(나중에 이미지랑 문서 통합 검색 모드도 만드는게 좋을듯)
+    def search(self):
         if self.busy or self.service is None:
             return
         query = self.query_entry.get().strip()
@@ -147,10 +148,10 @@ class DocumentSearchApp(ctk.CTk):
         self.show_message("검색 결과를 불러오고 있습니다...")
         self.run_worker(self.search_job, query, mode)
 
-    def search_job(self, query, mode): #검색 엔진을 호출하여 검색 결과 반환
+    def search_job(self, query, mode):
         return self.service.search(query, mode=mode)
 
-    def poll_messages(self): #작업 스레드의 결과를 받아 GUI 화면에 반영
+    def poll_messages(self):
         try:
             while True:
                 job, result, error = self.messages.get_nowait()
@@ -172,7 +173,7 @@ class DocumentSearchApp(ctk.CTk):
             pass
         self.after(100, self.poll_messages)
 
-    def show_results(self, results): #검색 결과를 파일별 카드 형태로 화면에 표시
+    def show_results(self, results):
         self.clear_results()
         if not results:
             self.show_message("검색 결과가 없습니다.")
@@ -194,7 +195,7 @@ class DocumentSearchApp(ctk.CTk):
                 widget.bind("<Double-Button-1>", lambda event, p=path: self.open_file(p))
 
 
-    def open_file(self, path):  # 파일 열기
+    def open_file(self, path):
         if not Path(path).is_file():
             messagebox.showerror("파일 열기", "파일이 존재하지 않습니다.", parent=self)
             return

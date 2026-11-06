@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from database.db_info import DocumentInfo
-from database.db_manager import Repository
+from database.manager import Repository
 
 
 class DocumentDatabaseTests(unittest.TestCase):
@@ -31,14 +31,18 @@ class DocumentDatabaseTests(unittest.TestCase):
             # 팀원 원본은 연결을 명시적으로 닫지 않는다. 테스트 임시 파일 정리만 돕는다.
             gc.collect()
 
-    def test_duplicate_path_does_not_overwrite_saved_row(self):
+    def test_duplicate_path_updates_same_row_and_preserves_created_at(self):
         with TemporaryDirectory() as folder:
             repository = Repository(str(Path(folder) / 'documents.db'))
             info = DocumentInfo('same.pdf', 'same.pdf', '.pdf', 1, 'hash', 'created', 'updated')
             file_id = repository.save(info)
-            with self.assertRaises(sqlite3.IntegrityError):
-                repository.save(info)
-            self.assertEqual(repository.find_by_id(file_id).file_hash, 'hash')
+            updated = DocumentInfo('same.pdf', 'same.pdf', '.pdf', 2, 'new-hash', 'later', 'new-updated')
+            self.assertEqual(repository.save(updated), file_id)
+            found = repository.find_by_id(file_id)
+            self.assertEqual(found.file_hash, 'new-hash')
+            self.assertEqual(found.file_size, 2)
+            self.assertEqual(found.updated_at, 'new-updated')
+            self.assertEqual(found.created_at, 'created')
             gc.collect()
 
     def test_unknown_id_is_none(self):
