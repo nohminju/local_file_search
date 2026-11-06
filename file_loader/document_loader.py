@@ -113,7 +113,7 @@ class DocumentLoader:
             prs = Presentation(file_path)
             for slide_idx, slide in enumerate(prs.slides, start=1):
                 slide_texts: List[str] = []
-                extracted_image: Optional[Image.Image] = None
+                extracted_images = []
 
                 for shape in slide.shapes:
                     if shape.has_text_frame:
@@ -130,20 +130,29 @@ class DocumentLoader:
                     elif shape.shape_type == 13:
                         try:
                             image_bytes = shape.image.blob
-                            extracted_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                            extracted_images.append(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
                         except Exception:
                             pass
 
                 combined_text = "\n".join(slide_texts).strip()
-                if combined_text or extracted_image:
-                    chunks.append(DocumentChunk(
-                        file_name=file_name,
-                        file_path=file_path,
-                        page_number=slide_idx,
-                        text=combined_text,
-                        chunk_type="pptx",
-                        image=extracted_image
-                    ))
+                if combined_text:
+                chunks.append(DocumentChunk(
+                    file_name=file_name,
+                    file_path=file_path,
+                    page_number=slide_idx,
+                    text=combined_text,
+                    chunk_type="pptx"
+                ))
+
+                for image in extracted_images:
+                chunks.append(DocumentChunk(
+                    file_name=file_name,
+                    file_path=file_path,
+                    page_number=slide_idx,
+                    text="",
+                    chunk_type="image",
+                    image=image
+                ))
         except Exception:
             return []
 
