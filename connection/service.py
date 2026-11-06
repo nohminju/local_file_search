@@ -1,46 +1,43 @@
-"""팀원 로더·인코더의 반환값을 파일 ID와 연결한다."""
+"""로더·인코더·FAISS 검색 결과를 SQLite 파일 정보와 연결한다."""
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 
 from database.db_info import DocumentInfo
 from file_loader.document_loader import DocumentScanner
-from similarity.temporary_image_similarity import search_images
 
 
 class DocumentSearch:
     def __init__(self, loader, image_encoder, document_encoder,
-                 document_embedder, query_encoder, repository):
+                 document_embedder, query_encoder, repository, vector_index):
         self.loader = loader
         self.image_encoder = image_encoder
         self.document_encoder = document_encoder
         self.document_embedder = document_embedder
         self.query_encoder = query_encoder
         self.repository = repository
+        self.vector_index = vector_index
         self.file_ids = {}  # 실제 파일 경로 → DB가 반환한 번호
-        self.image_vectors = []  # (파일 번호, OpenCLIP 벡터)
 
     def analyze(self, folder_path):
+        """파일을 읽어 벡터를 인덱싱하고 파일 정보를 저장한다."""
         folder = Path(folder_path).expanduser().resolve()
         if not folder.is_dir():
             raise ValueError("존재하는 폴더를 선택하세요.")
         if self.file_ids:
             raise ValueError("재분석은 새 서비스로 시작하세요.")
 
-        documents, failures, pending_images = [], [], []
-        text_chunks = []  # 분석 중에만 모으고, 인코딩 후에는 본문 모델이 보관한다.
+        documents, failures = [], []
+        image_vectors, image_chunks = [], []
+        text_chunks = []
         for file_path in DocumentScanner(str(folder)).scan_files():
             path = Path(file_path)
-            # 팀원 로더가 확장자를 보고 이미지·PDF·PPTX 읽기를 선택한다.
-            chunks = self.loader.process_file(str(path))
-            if not chunks:
-                failures.append((path, "읽을 본문이나 이미지가 없습니다."))
-                continue
-
-            # 메타데이터를 DB 자료형에 맞추는 것은 내 연결 역할이다.
             try:
+                chunks = self.loader.process_file(str(path))
+                if not chunks:
+                    failures.append((path, "읽을 본문이나 이미지가 없습니다."))
+                    continue
                 stat = path.stat()
-                # 항목 이름을 적어 DB에 어떤 값을 보내는지 바로 보이게 한다.
                 info = DocumentInfo(
                     file_path=str(path),
                     file_name=path.name,
@@ -55,60 +52,58 @@ class DocumentSearch:
                 continue
 
             # 모델 오류는 읽기 실패로 숨기지 않고 호출자에게 전달한다.
-            vectors = []
             for chunk in chunks:
                 if chunk.image is not None:
-                    if chunk.chunk_type == 'image':
-                        vectors.append(self.image_encoder.encode(chunk.image))
-                    else:
-                        vectors.append(self.document_encoder.encode(chunk.image))
+                    encoder = self.image_encoder if chunk.chunk_type == 'image' else self.document_encoder
+                    image_vectors.append(encoder.encode(chunk.image))
+                    image_chunks.append(chunk)
             text_chunks.extend(chunk for chunk in chunks if chunk.text.strip())
             documents.append(info)
-            pending_images.append(vectors)
 
-        # 본문은 원본 DocumentEmbedder가 청크 목록을 한 번에 인코딩한다.
         if text_chunks:
             self.document_embedder.embed_chunks(text_chunks)
+            self.vector_index.add_documents(self.document_embedder.embeddings, text_chunks)
+        if image_chunks:
+            self.vector_index.add_images(image_vectors, image_chunks)
 
-        for info, vectors in zip(documents, pending_images):
-            file_id = self.repository.save(info)
-            self.file_ids[info.file_path] = file_id
-            self.image_vectors.extend((file_id, vector) for vector in vectors)
+        for info in documents:
+            self.file_ids[info.file_path] = self.repository.save(info)
         return documents, failures
 
     def search(self, query, top_k=5, mode='documents'):
+        """FAISS 점수순으로 파일 중복을 제거해 최대 top_k개를 반환한다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
 
         if mode == 'documents':
-            chunks = self.document_embedder.chunks
-            if not chunks:
+            count = len(self.vector_index.chunk_metas['doc'])
+            if not count:
                 return []
-            # 원본 search는 입력 문장도 같은 ko-SRoBERTa로 인코딩한다.
-            hits = self.document_embedder.search(query, top_k=len(chunks))
-            ranked = []
-            seen = set()
-            for hit in hits:
-                file_id = self.file_ids[hit['chunk'].file_path]
-                if file_id not in seen:
-                    ranked.append((file_id, hit['score']))
-                    seen.add(file_id)
-            ranked = ranked[:top_k]
+            # 본문과 같은 모델로 검색 문장을 인코딩하고 비교는 팀원 FAISS에 맡긴다.
+            query_vector = self.document_embedder.model.encode([query])
+            hits = self.vector_index.search_documents(query_vector, top_k=count)
         elif mode == 'images':
-            if not self.image_vectors:
+            count = len(self.vector_index.chunk_metas['img'])
+            if not count:
                 return []
-            # 임시 이미지 비교: 문장도 이미지와 같은 OpenCLIP 공간으로 바꾼다.
-            # 한 문장도 (1, 512)로 반환되므로 첫 행을 꺼낸다.
-            query_vector = self.query_encoder.encode_text(query)[0]
-            ranked = search_images(query_vector, self.image_vectors, top_k)
+            query_vector = self.query_encoder.encode_text(query)
+            hits = self.vector_index.search_images(query_vector, top_k=count)
         else:
             raise ValueError("검색 대상은 documents 또는 images입니다.")
 
         results = []
-        for file_id, score in ranked:
+        seen = set()
+        # FAISS가 점수순으로 반환하므로 같은 파일의 첫 결과가 최고 점수다.
+        for hit in hits:
+            file_id = self.file_ids[hit['chunk']['file_path']]
+            if file_id in seen:
+                continue
+            seen.add(file_id)
             info = self.repository.find_by_id(file_id)
             if info is None:
                 raise LookupError(f"DB에 파일 번호 {file_id}가 없습니다.")
-            results.append((info, score))
+            results.append((info, hit['score']))
+            if len(results) >= top_k:
+                break
         return results

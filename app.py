@@ -9,6 +9,7 @@ from file_encoder.document_encoder import DocumentEncoder
 from similarity.document_embedder import DocumentEmbedder
 from query_encoder.text_encoder import KoreanTextEncoder
 from database.manager import Repository
+from database.faiss import FaissManager
 from connection.service import DocumentSearch
 
 
@@ -25,7 +26,7 @@ def build_service():
     session = TemporaryDirectory(prefix='document-search-')
     repository = Repository(str(Path(session.name) / 'document_metadata.db'))
     service = DocumentSearch(DocumentLoader(), image_encoder, document_encoder,
-                             document_embedder, query_encoder, repository)
+                             document_embedder, query_encoder, repository, FaissManager())
     service.session_directory = session
     return service
 
@@ -44,7 +45,7 @@ def main():
         query = input('검색 문장 (Enter로 종료): ').strip()
         if not query:
             break
-        mode = 'images' if input('이미지 유사도 검색(임시 구현)은 i, 본문 검색은 Enter: ').strip() == 'i' else 'documents'
+        mode = 'images' if input('이미지 검색은 i, 본문 검색은 Enter: ').strip() == 'i' else 'documents'
         results = service.search(query, mode=mode)
         for info, score in results:
             print(f'{info.file_name} / {score:.4f}\n{info.file_path}')

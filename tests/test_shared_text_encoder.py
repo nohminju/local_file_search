@@ -30,7 +30,7 @@ class SharedTextEncoderTests(unittest.TestCase):
         with patch('app.ImageEncoder') as image_class, \
              patch('app.KoreanTextEncoder') as text_class, \
              patch('app.open_clip.get_tokenizer') as tokenizer, \
-             patch('app.DocumentEmbedder'), patch('app.Repository'):
+             patch('app.DocumentEmbedder'), patch('app.Repository'), patch('app.FaissManager') as index_class:
             service = build_service()
             try:
                 text_class.assert_called_once_with(
@@ -40,5 +40,6 @@ class SharedTextEncoderTests(unittest.TestCase):
                 self.assertIs(service.document_encoder.image_encoder, service.image_encoder)
                 self.assertIs(service.query_encoder, text_class.return_value)
                 image_class.assert_called_once()
+                self.assertIs(service.vector_index, index_class.return_value)
             finally:
                 service.session_directory.cleanup()
