@@ -51,10 +51,12 @@ class DocumentSearch:
                 failures.append((path, str(error)))
                 continue
 
+            # 문서 이미지도 chunk_type이 image이므로 원본 확장자로 인코더를 고른다.
+            encoder = (self.document_encoder if path.suffix.lower() in {'.pdf', '.pptx'}
+                       else self.image_encoder)
             # 모델 오류는 읽기 실패로 숨기지 않고 호출자에게 전달한다.
             for chunk in chunks:
                 if chunk.image is not None:
-                    encoder = self.image_encoder if chunk.chunk_type == 'image' else self.document_encoder
                     image_vectors.append(encoder.encode(chunk.image))
                     image_chunks.append(chunk)
             text_chunks.extend(chunk for chunk in chunks if chunk.text.strip())
