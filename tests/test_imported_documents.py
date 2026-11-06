@@ -2,7 +2,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, PropertyMock, patch
 
 import numpy as np
 from PIL import Image
@@ -48,6 +48,38 @@ class ImportedDocumentTests(unittest.TestCase):
             chunks = DocumentLoader().process_file(str(path))
             self.assertEqual([c.page_number for c in chunks], [1, 2])
             self.assertEqual([c.text for c in chunks], ['First document page', 'Second document page'])
+
+    def test_pptx_keeps_all_images_without_duplicating_text(self):
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            presentation = Presentation()
+            slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+            slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = 'slide text'
+            for index, color in enumerate(('red', 'blue')):
+                path = root / f'{color}.png'
+                Image.new('RGB', (120, 120), color).save(path)
+                slide.shapes.add_picture(str(path), Inches(index + 1), Inches(3), width=Inches(1))
+            path = root / 'pictures.pptx'
+            presentation.save(path)
+            chunks = DocumentLoader().process_file(str(path))
+            self.assertEqual([c.text for c in chunks if c.text], ['slide text'])
+            images = [c for c in chunks if c.image is not None]
+            self.assertEqual(len(images), 2)
+            self.assertEqual([c.chunk_type for c in images], ['image', 'image'])
+            self.assertTrue(all(c.page_number == 1 and c.file_path == str(path) for c in chunks))
+
+    def test_pdf_image_enumeration_error_preserves_text_and_next_page(self):
+        broken_page = Mock()
+        broken_page.extract_text.return_value = 'first page'
+        type(broken_page).images = PropertyMock(side_effect=RuntimeError('image enumeration failed'))
+        next_page = Mock()
+        next_page.extract_text.return_value = 'second page'
+        next_page.images = []
+        reader = Mock(pages=[broken_page, next_page])
+        with patch('file_loader.document_loader.PdfReader', return_value=reader):
+            chunks = DocumentLoader().load_pdf('example.pdf')
+        self.assertEqual([c.text for c in chunks], ['first page', 'second page'])
+        self.assertEqual([c.page_number for c in chunks], [1, 2])
 
     def test_image_chunk_and_scanner(self):
         with TemporaryDirectory() as folder:

@@ -170,6 +170,37 @@ class ConnectionTests(unittest.TestCase):
                          [('blocked.png', 'access denied')])
         self.assertEqual(self.vector_index.indices['img'].ntotal, 1)
 
+    def test_pptx_multiple_images_use_document_encoder_and_one_file_result(self):
+        presentation = Presentation()
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = 'apple slide'
+        for index, color in enumerate(('red', 'blue')):
+            picture = BytesIO()
+            Image.new('RGB', (120, 120), color).save(picture, format='PNG')
+            picture.seek(0)
+            slide.shapes.add_picture(picture, Inches(index + 1), Inches(3), width=Inches(1))
+        presentation.save(self.folder / 'pictures.pptx')
+        documents, failures = self.service.analyze(self.folder)
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(failures, [])
+        self.assertEqual(len(self.embedder.chunks), 1)
+        self.assertEqual(self.document_encoder.encode.call_count, 2)
+        self.assertEqual(self.vector_index.indices['doc'].ntotal, 1)
+        self.assertEqual(self.vector_index.indices['img'].ntotal, 2)
+        hits = self.service.search('picture', mode='images')
+        self.assertEqual([info.file_name for info, _ in hits], ['pictures.pptx'])
+
+    def test_pdf_embedded_image_uses_document_encoder(self):
+        Image.new('RGB', (120, 120), 'blue').save(self.folder / 'scan.pdf', format='PDF')
+        documents, failures = self.service.analyze(self.folder)
+        self.assertEqual([info.file_name for info in documents], ['scan.pdf'])
+        self.assertEqual(failures, [])
+        self.document_encoder.encode.assert_called_once()
+        self.assertEqual(self.vector_index.indices['img'].ntotal, 1)
+        self.assertEqual(self.service.search('text', mode='documents'), [])
+        hits = self.service.search('blue image', mode='images')
+        self.assertEqual([info.file_name for info, _ in hits], ['scan.pdf'])
+
     def test_empty_query_and_invalid_mode(self):
         self.assertEqual(self.service.search('   '), [])
         with self.assertRaises(ValueError):
