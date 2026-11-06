@@ -8,28 +8,25 @@ from file_encoder.image_encoder import ImageEncoder
 from file_encoder.document_encoder import DocumentEncoder
 from similarity.document_embedder import DocumentEmbedder
 from query_encoder.text_encoder import KoreanTextEncoder
-from database.db_manager import Repository
+from database.manager import Repository
+from database.faiss import FaissManager
 from connection.service import DocumentSearch
 
 
 def build_service():
-    # 이미지와 이미지 검색 문장은 같은 OpenCLIP 모델·가중치를 사용한다.
     model_name = 'xlm-roberta-base-ViT-B-32'
     pretrained = 'laion5b_s13b_b90k'
     image_encoder = ImageEncoder(model_name=model_name, pretrained=pretrained)
     document_encoder = DocumentEncoder(image_encoder=image_encoder)
-    # 새 입력 인코더는 이미지 모델을 공유한다. 같은 모델을 두 번 읽지 않는다.
     query_encoder = KoreanTextEncoder(
         model=image_encoder.model,
         tokenizer=open_clip.get_tokenizer(model_name),
     )
-
-    # 문서 본문은 별도 ko-SRoBERTa로 인코딩·비교한다.
     document_embedder = DocumentEmbedder()
     session = TemporaryDirectory(prefix='document-search-')
     repository = Repository(str(Path(session.name) / 'document_metadata.db'))
     service = DocumentSearch(DocumentLoader(), image_encoder, document_encoder,
-                             document_embedder, query_encoder, repository)
+                             document_embedder, query_encoder, repository, FaissManager())
     service.session_directory = session
     return service
 
@@ -48,7 +45,7 @@ def main():
         query = input('검색 문장 (Enter로 종료): ').strip()
         if not query:
             break
-        mode = 'images' if input('이미지 유사도 검색(임시 구현)은 i, 본문 검색은 Enter: ').strip() == 'i' else 'documents'
+        mode = 'images' if input('이미지 검색은 i, 본문 검색은 Enter: ').strip() == 'i' else 'documents'
         results = service.search(query, mode=mode)
         for info, score in results:
             print(f'{info.file_name} / {score:.4f}\n{info.file_path}')
@@ -59,10 +56,7 @@ def main():
 if __name__ == '__main__':
     import sys
     if '--gui' in sys.argv:
-        import tkinter as tk
         from gui.window import DocumentSearchApp
-        root = tk.Tk()
-        DocumentSearchApp(root, build_service)
-        root.mainloop()
+        DocumentSearchApp(build_service).mainloop()
     else:
         main()
