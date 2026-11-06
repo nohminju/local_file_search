@@ -1,0 +1,2278 @@
+{
+  "date_kst": "2026-11-06",
+  "purpose": "현재 앱 모델을 교체하지 않고 한국어 이미지 검색 품질·속도 비교",
+  "image_source": "study/image_search_check_2026-11-03/images (local, Git ignored)",
+  "ground_truth_by": "AI inspected all seven local images; user has not manually reviewed labels",
+  "limits": [
+    "7 images, 5 broad subject categories; three cat images depict the same cat",
+    "18 positive paraphrase/attribute queries are not 18 independent image tasks",
+    "2 absent queries excluded from retrieval quality; no unknown-query rejection evaluated",
+    "Raw cosine scores from different models are not calibrated against one another",
+    "Single laptop CPU; 3 repeats; not an isolated performance lab or general benchmark"
+  ],
+  "sources": [
+    "https://huggingface.co/timm/ViT-B-16-SigLIP2",
+    "https://huggingface.co/google/siglip2-base-patch16-224",
+    "https://huggingface.co/laion/CLIP-ViT-B-32-xlm-roberta-base-laion5B-s13B-b90k"
+  ],
+  "models": {
+    "current": {
+      "status": "complete",
+      "started_utc": "2026-11-06T04:22:20.925114+00:00",
+      "model": "xlm-roberta-base-ViT-B-32",
+      "pretrained": "laion5b_s13b_b90k",
+      "device": "cpu",
+      "dtype": "float32",
+      "threads": 4,
+      "repeats": 3,
+      "seed": 0,
+      "python": "3.14.3",
+      "platform": "Windows-11-10.0.26300-SP0",
+      "cpu": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+      "logical_cpus": 16,
+      "versions": {
+        "torch": "2.15.0",
+        "open_clip_torch": "4.2.1",
+        "transformers": "5.22.1",
+        "faiss-cpu": "1.15.1",
+        "Pillow": "13.0.0"
+      },
+      "images": [
+        {
+          "file": "Test1.jpg",
+          "size": [
+            3024,
+            4032
+          ],
+          "sha256": "211e83e77319cf06a77a5154b4418bba7e42fff847bec252df7df1b21d20f1fa"
+        },
+        {
+          "file": "Test2.jpg",
+          "size": [
+            2642,
+            2722
+          ],
+          "sha256": "db9b990b8b08d03299f0fa29c1514331152a47f985423efbe758daf54ce2a9a2"
+        },
+        {
+          "file": "Test3.jpg",
+          "size": [
+            3024,
+            4032
+          ],
+          "sha256": "ec39e246e1f4d3eb53da72eb94f1cedde17e5c3e40aa16a4c23517c9cef53bfb"
+        },
+        {
+          "file": "beach.jpg",
+          "size": [
+            1920,
+            1282
+          ],
+          "sha256": "90c727f70af76f3b64a24110b67ab5ee005d9362f9f44e30747e4337a22d69f9"
+        },
+        {
+          "file": "road.png",
+          "size": [
+            555,
+            418
+          ],
+          "sha256": "0d829825bdf97b1164ff4a1e23f26c3b5f8525c6f41f703c39437fe0b2686f91"
+        },
+        {
+          "file": "seal.jpg",
+          "size": [
+            740,
+            473
+          ],
+          "sha256": "ffa265461aac19b1f5080ddf5866579f18b070c715bff9b41b962e882cc69213"
+        },
+        {
+          "file": "zebra.png",
+          "size": [
+            620,
+            548
+          ],
+          "sha256": "791233fe71061eae311b25fcf23e0952bed17cf297d7aafbdd4566389af6293d"
+        }
+      ],
+      "cases": [
+        {
+          "query": "고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test2.jpg",
+            "Test3.jpg"
+          ]
+        },
+        {
+          "query": "파란 눈을 가진 고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test3.jpg"
+          ]
+        },
+        {
+          "query": "하얀 털과 갈색 무늬가 있는 고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test2.jpg",
+            "Test3.jpg"
+          ]
+        },
+        {
+          "query": "하품하는 고양이",
+          "relevant": [
+            "Test2.jpg"
+          ]
+        },
+        {
+          "query": "배를 드러내고 누운 고양이",
+          "relevant": [
+            "Test2.jpg"
+          ]
+        },
+        {
+          "query": "고양이 얼굴을 가까이 찍은 사진",
+          "relevant": [
+            "Test3.jpg"
+          ]
+        },
+        {
+          "query": "모래사장에 의자가 놓인 해변",
+          "relevant": [
+            "beach.jpg"
+          ]
+        },
+        {
+          "query": "푸른 바다가 보이는 해변",
+          "relevant": [
+            "beach.jpg"
+          ]
+        },
+        {
+          "query": "바닷가 모래사장",
+          "relevant": [
+            "beach.jpg"
+          ]
+        },
+        {
+          "query": "길게 뻗은 도로",
+          "relevant": [
+            "road.png"
+          ]
+        },
+        {
+          "query": "차선이 있는 아스팔트 도로",
+          "relevant": [
+            "road.png"
+          ]
+        },
+        {
+          "query": "초원 사이로 난 길",
+          "relevant": [
+            "road.png"
+          ]
+        },
+        {
+          "query": "물개",
+          "relevant": [
+            "seal.jpg"
+          ]
+        },
+        {
+          "query": "눈 위에 앉아 있는 물개",
+          "relevant": [
+            "seal.jpg"
+          ]
+        },
+        {
+          "query": "검은색 물개 사진",
+          "relevant": [
+            "seal.jpg"
+          ]
+        },
+        {
+          "query": "얼룩말",
+          "relevant": [
+            "zebra.png"
+          ]
+        },
+        {
+          "query": "검고 흰 줄무늬가 있는 얼룩말",
+          "relevant": [
+            "zebra.png"
+          ]
+        },
+        {
+          "query": "얼룩말 옆모습",
+          "relevant": [
+            "zebra.png"
+          ]
+        },
+        {
+          "query": "강아지",
+          "relevant": []
+        },
+        {
+          "query": "비행기",
+          "relevant": []
+        }
+      ],
+      "protocol": "CPU FP32; batch=1; model-native preprocessing/tokenizer; raw Korean queries; L2-normalized embeddings; FAISS IndexFlatIP; one image/query warmup; 3 shuffled timed query rounds by default; preload images; exclude file IO, download, model setup, warmup, DB and GUI from inference timings. Absent queries are excluded from quality metrics; no rejection threshold.",
+      "setup_seconds_including_any_download": 16.15169640001841,
+      "parameter_count": 366121473,
+      "image_size": [
+        224,
+        224
+      ],
+      "embedding_dim": 512,
+      "queries": [
+        {
+          "query": "고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test2.jpg",
+            "Test3.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.24558615684509277
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.2386229932308197
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.2208871990442276
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.13187140226364136
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.10409346222877502
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.0658036470413208
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.06058195233345032
+            }
+          ],
+          "latency_ms": [
+            58.92440001480281,
+            62.78920010663569,
+            132.56339984945953
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "파란 눈을 가진 고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test3.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.27930983901023865
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.2453356236219406
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.2027268260717392
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.0713915079832077
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.06650807708501816
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.04702121019363403
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.04354969784617424
+            }
+          ],
+          "latency_ms": [
+            66.92859996110201,
+            59.37969987280667,
+            130.1343000959605
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "하얀 털과 갈색 무늬가 있는 고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test2.jpg",
+            "Test3.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.25567498803138733
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.24917910993099213
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.21539896726608276
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.10070393979549408
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.06055830419063568
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.03462281450629234
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.009831162169575691
+            }
+          ],
+          "latency_ms": [
+            60.27990020811558,
+            67.73489993065596,
+            137.25769985467196
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "하품하는 고양이",
+          "relevant": [
+            "Test2.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.263187438249588
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.22515985369682312
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.20339271426200867
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.12433770298957825
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.10151118785142899
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.06335597485303879
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.054958146065473557
+            }
+          ],
+          "latency_ms": [
+            63.28759994357824,
+            61.11760018393397,
+            130.3847001399845
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "배를 드러내고 누운 고양이",
+          "relevant": [
+            "Test2.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.21970921754837036
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.188789963722229
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.17314592003822327
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.10615462809801102
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.08330181986093521
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.07887784391641617
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.03242270648479462
+            }
+          ],
+          "latency_ms": [
+            62.89399997331202,
+            62.61390005238354,
+            115.5807999894023
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "고양이 얼굴을 가까이 찍은 사진",
+          "relevant": [
+            "Test3.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.26524442434310913
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.21704979240894318
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.1960887610912323
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.09042452275753021
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.0766153335571289
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.05219480022788048
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.03628285974264145
+            }
+          ],
+          "latency_ms": [
+            60.55409996770322,
+            67.32539995573461,
+            140.8260001335293
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "모래사장에 의자가 놓인 해변",
+          "relevant": [
+            "beach.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "beach.jpg",
+              "cosine": 0.30122673511505127
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.05537687987089157
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.04547013342380524
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.04287318140268326
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.04226135462522507
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.04039347916841507
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.01511985994875431
+            }
+          ],
+          "latency_ms": [
+            60.39520003832877,
+            64.44749981164932,
+            139.5598000381142
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "푸른 바다가 보이는 해변",
+          "relevant": [
+            "beach.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "beach.jpg",
+              "cosine": 0.24957382678985596
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.09792909026145935
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.07734550535678864
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.07624100148677826
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.058598849922418594
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.05640304461121559
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.005134257487952709
+            }
+          ],
+          "latency_ms": [
+            76.32079999893904,
+            57.7970000449568,
+            58.87629999779165
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "바닷가 모래사장",
+          "relevant": [
+            "beach.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "beach.jpg",
+              "cosine": 0.25697600841522217
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.10902892053127289
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.10779674351215363
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.09796652942895889
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.09782931208610535
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.0944138839840889
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.051807910203933716
+            }
+          ],
+          "latency_ms": [
+            60.2761001791805,
+            61.057399958372116,
+            130.21920016035438
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "길게 뻗은 도로",
+          "relevant": [
+            "road.png"
+          ],
+          "ranking": [
+            {
+              "file": "road.png",
+              "cosine": 0.2564273774623871
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.10690939426422119
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.07903456687927246
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.05394427105784416
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.050222884863615036
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.034635428339242935
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.013625661842525005
+            }
+          ],
+          "latency_ms": [
+            62.361299991607666,
+            90.24320007301867,
+            129.93359984830022
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "차선이 있는 아스팔트 도로",
+          "relevant": [
+            "road.png"
+          ],
+          "ranking": [
+            {
+              "file": "road.png",
+              "cosine": 0.245533287525177
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.05130912363529205
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.01607336662709713
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.013780094683170319
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": -0.01055578701198101
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.015088137239217758
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": -0.019107645377516747
+            }
+          ],
+          "latency_ms": [
+            67.58260005153716,
+            79.32020002044737,
+            106.29689996130764
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "초원 사이로 난 길",
+          "relevant": [
+            "road.png"
+          ],
+          "ranking": [
+            {
+              "file": "road.png",
+              "cosine": 0.19038179516792297
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.09317262470722198
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.09153538197278976
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.08652689307928085
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.07553958147764206
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.07386961579322815
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.022858042269945145
+            }
+          ],
+          "latency_ms": [
+            63.47929988987744,
+            59.567099902778864,
+            129.47729998268187
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "물개",
+          "relevant": [
+            "seal.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "seal.jpg",
+              "cosine": 0.26055073738098145
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.1669454127550125
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.15466001629829407
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.12332476675510406
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.10876192897558212
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.09920475631952286
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.07280793786048889
+            }
+          ],
+          "latency_ms": [
+            59.15840016677976,
+            58.958500158041716,
+            113.49699995480478
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "눈 위에 앉아 있는 물개",
+          "relevant": [
+            "seal.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "seal.jpg",
+              "cosine": 0.28444474935531616
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.1614588499069214
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.12923385202884674
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.11536329239606857
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.07567712664604187
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.0751042366027832
+            },
+            {
+              "file": "road.png",
+              "cosine": -0.004207391291856766
+            }
+          ],
+          "latency_ms": [
+            58.17850003950298,
+            89.67999997548759,
+            131.3633001409471
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "검은색 물개 사진",
+          "relevant": [
+            "seal.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "seal.jpg",
+              "cosine": 0.2829330265522003
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.12810826301574707
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.1237664744257927
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.11577854305505753
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.1041114404797554
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.09333912283182144
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.08436787128448486
+            }
+          ],
+          "latency_ms": [
+            59.52439992688596,
+            63.0925998557359,
+            129.14610002189875
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "얼룩말",
+          "relevant": [
+            "zebra.png"
+          ],
+          "ranking": [
+            {
+              "file": "zebra.png",
+              "cosine": 0.24729745090007782
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.173496812582016
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.17150378227233887
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.15746724605560303
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.12479012459516525
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.10886766016483307
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.100560262799263
+            }
+          ],
+          "latency_ms": [
+            65.67249982617795,
+            69.23530017957091,
+            140.74509986676276
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "검고 흰 줄무늬가 있는 얼룩말",
+          "relevant": [
+            "zebra.png"
+          ],
+          "ranking": [
+            {
+              "file": "zebra.png",
+              "cosine": 0.2639867067337036
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.10258728265762329
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.10105037689208984
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.09628313034772873
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.07901015877723694
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.07461731135845184
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.05025792494416237
+            }
+          ],
+          "latency_ms": [
+            60.790899908170104,
+            60.34699990414083,
+            139.87010018900037
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "얼룩말 옆모습",
+          "relevant": [
+            "zebra.png"
+          ],
+          "ranking": [
+            {
+              "file": "zebra.png",
+              "cosine": 0.25256234407424927
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.17429104447364807
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.15628883242607117
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.13753432035446167
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.11062131077051163
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.10258225351572037
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.10246691107749939
+            }
+          ],
+          "latency_ms": [
+            66.035799914971,
+            61.36539997532964,
+            142.54709985107183
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "강아지",
+          "relevant": [],
+          "ranking": [
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.1779288798570633
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.16834211349487305
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.1367659866809845
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.12404748052358627
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.09137223660945892
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.07332860678434372
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.06897813826799393
+            }
+          ],
+          "latency_ms": [
+            64.75569983012974,
+            58.29850002191961,
+            135.29720017686486
+          ]
+        },
+        {
+          "query": "비행기",
+          "relevant": [],
+          "ranking": [
+            {
+              "file": "road.png",
+              "cosine": 0.1136181503534317
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.11007692664861679
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.10324771702289581
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.0925469696521759
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.0683300644159317
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.05270874500274658
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.037620194256305695
+            }
+          ],
+          "latency_ms": [
+            61.389399925246835,
+            63.07919998653233,
+            124.13379992358387
+          ]
+        }
+      ],
+      "quality": {
+        "hit_at_1": 1.0,
+        "hit_at_5": 1.0,
+        "reciprocal_rank": 1.0,
+        "recall_at_3": 1.0,
+        "positive_queries": 18,
+        "top1_correct": 18
+      },
+      "timing": {
+        "image_ms_per_image_median": 77.56650005467236,
+        "image_round_seconds": [
+          0.6713906999211758,
+          0.48833059961907566,
+          0.490448699798435
+        ],
+        "image_7_total_seconds_median": 0.490448699798435,
+        "query_ms_median": 65.21409982815385,
+        "query_ms_p95": 139.9138501728885,
+        "image_sample_count": 21,
+        "query_sample_count": 60
+      },
+      "weight_repository": "laion/CLIP-ViT-B-32-xlm-roberta-base-laion5B-s13B-b90k",
+      "cached_revision": "506d40eb551f4801a1c27fc20a31c7b8f590deda"
+    },
+    "siglip2": {
+      "status": "complete",
+      "started_utc": "2026-11-06T04:21:46.763864+00:00",
+      "model": "ViT-B-16-SigLIP2",
+      "pretrained": "webli",
+      "device": "cpu",
+      "dtype": "float32",
+      "threads": 4,
+      "repeats": 3,
+      "seed": 0,
+      "python": "3.14.3",
+      "platform": "Windows-11-10.0.26300-SP0",
+      "cpu": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+      "logical_cpus": 16,
+      "versions": {
+        "torch": "2.15.0",
+        "open_clip_torch": "4.2.1",
+        "transformers": "5.22.1",
+        "faiss-cpu": "1.15.1",
+        "Pillow": "13.0.0"
+      },
+      "images": [
+        {
+          "file": "Test1.jpg",
+          "size": [
+            3024,
+            4032
+          ],
+          "sha256": "211e83e77319cf06a77a5154b4418bba7e42fff847bec252df7df1b21d20f1fa"
+        },
+        {
+          "file": "Test2.jpg",
+          "size": [
+            2642,
+            2722
+          ],
+          "sha256": "db9b990b8b08d03299f0fa29c1514331152a47f985423efbe758daf54ce2a9a2"
+        },
+        {
+          "file": "Test3.jpg",
+          "size": [
+            3024,
+            4032
+          ],
+          "sha256": "ec39e246e1f4d3eb53da72eb94f1cedde17e5c3e40aa16a4c23517c9cef53bfb"
+        },
+        {
+          "file": "beach.jpg",
+          "size": [
+            1920,
+            1282
+          ],
+          "sha256": "90c727f70af76f3b64a24110b67ab5ee005d9362f9f44e30747e4337a22d69f9"
+        },
+        {
+          "file": "road.png",
+          "size": [
+            555,
+            418
+          ],
+          "sha256": "0d829825bdf97b1164ff4a1e23f26c3b5f8525c6f41f703c39437fe0b2686f91"
+        },
+        {
+          "file": "seal.jpg",
+          "size": [
+            740,
+            473
+          ],
+          "sha256": "ffa265461aac19b1f5080ddf5866579f18b070c715bff9b41b962e882cc69213"
+        },
+        {
+          "file": "zebra.png",
+          "size": [
+            620,
+            548
+          ],
+          "sha256": "791233fe71061eae311b25fcf23e0952bed17cf297d7aafbdd4566389af6293d"
+        }
+      ],
+      "cases": [
+        {
+          "query": "고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test2.jpg",
+            "Test3.jpg"
+          ]
+        },
+        {
+          "query": "파란 눈을 가진 고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test3.jpg"
+          ]
+        },
+        {
+          "query": "하얀 털과 갈색 무늬가 있는 고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test2.jpg",
+            "Test3.jpg"
+          ]
+        },
+        {
+          "query": "하품하는 고양이",
+          "relevant": [
+            "Test2.jpg"
+          ]
+        },
+        {
+          "query": "배를 드러내고 누운 고양이",
+          "relevant": [
+            "Test2.jpg"
+          ]
+        },
+        {
+          "query": "고양이 얼굴을 가까이 찍은 사진",
+          "relevant": [
+            "Test3.jpg"
+          ]
+        },
+        {
+          "query": "모래사장에 의자가 놓인 해변",
+          "relevant": [
+            "beach.jpg"
+          ]
+        },
+        {
+          "query": "푸른 바다가 보이는 해변",
+          "relevant": [
+            "beach.jpg"
+          ]
+        },
+        {
+          "query": "바닷가 모래사장",
+          "relevant": [
+            "beach.jpg"
+          ]
+        },
+        {
+          "query": "길게 뻗은 도로",
+          "relevant": [
+            "road.png"
+          ]
+        },
+        {
+          "query": "차선이 있는 아스팔트 도로",
+          "relevant": [
+            "road.png"
+          ]
+        },
+        {
+          "query": "초원 사이로 난 길",
+          "relevant": [
+            "road.png"
+          ]
+        },
+        {
+          "query": "물개",
+          "relevant": [
+            "seal.jpg"
+          ]
+        },
+        {
+          "query": "눈 위에 앉아 있는 물개",
+          "relevant": [
+            "seal.jpg"
+          ]
+        },
+        {
+          "query": "검은색 물개 사진",
+          "relevant": [
+            "seal.jpg"
+          ]
+        },
+        {
+          "query": "얼룩말",
+          "relevant": [
+            "zebra.png"
+          ]
+        },
+        {
+          "query": "검고 흰 줄무늬가 있는 얼룩말",
+          "relevant": [
+            "zebra.png"
+          ]
+        },
+        {
+          "query": "얼룩말 옆모습",
+          "relevant": [
+            "zebra.png"
+          ]
+        },
+        {
+          "query": "강아지",
+          "relevant": []
+        },
+        {
+          "query": "비행기",
+          "relevant": []
+        }
+      ],
+      "protocol": "CPU FP32; batch=1; model-native preprocessing/tokenizer; raw Korean queries; L2-normalized embeddings; FAISS IndexFlatIP; one image/query warmup; 3 shuffled timed query rounds by default; preload images; exclude file IO, download, model setup, warmup, DB and GUI from inference timings. Absent queries are excluded from quality metrics; no rejection threshold.",
+      "setup_seconds_including_any_download": 6.043248099973425,
+      "parameter_count": 375187970,
+      "image_size": [
+        224,
+        224
+      ],
+      "embedding_dim": 768,
+      "queries": [
+        {
+          "query": "고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test2.jpg",
+            "Test3.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.11109308898448944
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.10083608329296112
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.09737972915172577
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.032755423337221146
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.029845887795090675
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.028370661661028862
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.026674283668398857
+            }
+          ],
+          "latency_ms": [
+            123.12990007922053,
+            88.23300013318658,
+            84.7735998686403
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "파란 눈을 가진 고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test3.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.11349575221538544
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.0965399220585823
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.07809252291917801
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": -0.0038770679384469986
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.010571129620075226
+            },
+            {
+              "file": "road.png",
+              "cosine": -0.016372114419937134
+            },
+            {
+              "file": "zebra.png",
+              "cosine": -0.019570279866456985
+            }
+          ],
+          "latency_ms": [
+            67.53970007412136,
+            128.40720009990036,
+            178.7558998912573
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "하얀 털과 갈색 무늬가 있는 고양이",
+          "relevant": [
+            "Test1.jpg",
+            "Test2.jpg",
+            "Test3.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.10111057758331299
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.09383755177259445
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.08643490821123123
+            },
+            {
+              "file": "zebra.png",
+              "cosine": -0.008663235232234001
+            },
+            {
+              "file": "road.png",
+              "cosine": -0.017528129741549492
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": -0.030548013746738434
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.03714735805988312
+            }
+          ],
+          "latency_ms": [
+            120.09029998444021,
+            78.4715001937002,
+            264.38569999299943
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "하품하는 고양이",
+          "relevant": [
+            "Test2.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.12305478006601334
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.08293275535106659
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.07581397891044617
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.0104384645819664
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.010161139070987701
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.003227410838007927
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": -0.004491738975048065
+            }
+          ],
+          "latency_ms": [
+            115.53460010327399,
+            86.20460005477071,
+            84.6220999956131
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "배를 드러내고 누운 고양이",
+          "relevant": [
+            "Test2.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.12179750949144363
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.0865008756518364
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.08399154245853424
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.012409426271915436
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.009500069543719292
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.007041562348604202
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.005092613399028778
+            }
+          ],
+          "latency_ms": [
+            116.95359996519983,
+            80.66409989260137,
+            179.10750000737607
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "고양이 얼굴을 가까이 찍은 사진",
+          "relevant": [
+            "Test3.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.12007748335599899
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.07924899458885193
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.07320257276296616
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.010294878855347633
+            },
+            {
+              "file": "road.png",
+              "cosine": -0.01070941798388958
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": -0.01919182576239109
+            },
+            {
+              "file": "zebra.png",
+              "cosine": -0.02605866640806198
+            }
+          ],
+          "latency_ms": [
+            111.37149995192885,
+            101.46880010142922,
+            251.13780004903674
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "모래사장에 의자가 놓인 해변",
+          "relevant": [
+            "beach.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "beach.jpg",
+              "cosine": 0.0973089411854744
+            },
+            {
+              "file": "road.png",
+              "cosine": -0.003857043571770191
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.015333548188209534
+            },
+            {
+              "file": "zebra.png",
+              "cosine": -0.03091512992978096
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": -0.035947296768426895
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.041688889265060425
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": -0.044272176921367645
+            }
+          ],
+          "latency_ms": [
+            127.15690000914037,
+            120.05419982597232,
+            97.42140001617372
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "푸른 바다가 보이는 해변",
+          "relevant": [
+            "beach.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "beach.jpg",
+              "cosine": 0.1211107149720192
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.03722367435693741
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.003754209727048874
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.00011703744530677795
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.0036599598824977875
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": -0.01042139157652855
+            },
+            {
+              "file": "zebra.png",
+              "cosine": -0.012842385098338127
+            }
+          ],
+          "latency_ms": [
+            120.85919990204275,
+            83.66949995979667,
+            81.15409989841282
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "바닷가 모래사장",
+          "relevant": [
+            "beach.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "beach.jpg",
+              "cosine": 0.1126360222697258
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.005909041501581669
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.004407066851854324
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.0034458935260772705
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.0023264624178409576
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.002037864178419113
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.0012435298413038254
+            }
+          ],
+          "latency_ms": [
+            75.24979999288917,
+            84.67029989697039,
+            101.74369998276234
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "길게 뻗은 도로",
+          "relevant": [
+            "road.png"
+          ],
+          "ranking": [
+            {
+              "file": "road.png",
+              "cosine": 0.12941496074199677
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.04722234979271889
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.022545795887708664
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.009783944115042686
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.006227537989616394
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.001756357029080391
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.001957068219780922
+            }
+          ],
+          "latency_ms": [
+            121.78879999555647,
+            74.76870017126203,
+            78.60460015945137
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "차선이 있는 아스팔트 도로",
+          "relevant": [
+            "road.png"
+          ],
+          "ranking": [
+            {
+              "file": "road.png",
+              "cosine": 0.12935090065002441
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.028237655758857727
+            },
+            {
+              "file": "zebra.png",
+              "cosine": -0.005112858489155769
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": -0.010709179565310478
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": -0.013739097863435745
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.019998401403427124
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.02557860128581524
+            }
+          ],
+          "latency_ms": [
+            145.11369983665645,
+            130.44059998355806,
+            179.03510015457869
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "초원 사이로 난 길",
+          "relevant": [
+            "road.png"
+          ],
+          "ranking": [
+            {
+              "file": "road.png",
+              "cosine": 0.10812853276729584
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.03021121397614479
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.02795247547328472
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.01345878466963768
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.004174375906586647
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.0006386758759617805
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.0016289763152599335
+            }
+          ],
+          "latency_ms": [
+            130.06699993275106,
+            101.414900040254,
+            226.96400014683604
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "물개",
+          "relevant": [
+            "seal.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "seal.jpg",
+              "cosine": 0.13725125789642334
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.0646025612950325
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.05218376964330673
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.0498875267803669
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.04538210853934288
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.03570343554019928
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.034641508013010025
+            }
+          ],
+          "latency_ms": [
+            95.54099990054965,
+            104.62430003099144,
+            199.7715998440981
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "눈 위에 앉아 있는 물개",
+          "relevant": [
+            "seal.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "seal.jpg",
+              "cosine": 0.1457623541355133
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.0041387081146240234
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": -0.012128248810768127
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.01530473679304123
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": -0.015708889812231064
+            },
+            {
+              "file": "zebra.png",
+              "cosine": -0.028462275862693787
+            },
+            {
+              "file": "road.png",
+              "cosine": -0.05992540717124939
+            }
+          ],
+          "latency_ms": [
+            75.84609999321401,
+            116.70760018751025,
+            118.35619993507862
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "검은색 물개 사진",
+          "relevant": [
+            "seal.jpg"
+          ],
+          "ranking": [
+            {
+              "file": "seal.jpg",
+              "cosine": 0.14720332622528076
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.02685052901506424
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.026174932718276978
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.010846557095646858
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.009995652362704277
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.00013995543122291565
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.002691546455025673
+            }
+          ],
+          "latency_ms": [
+            125.09200000204146,
+            114.92400011047721,
+            151.31399990059435
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "얼룩말",
+          "relevant": [
+            "zebra.png"
+          ],
+          "ranking": [
+            {
+              "file": "zebra.png",
+              "cosine": 0.14142340421676636
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.032161612063646317
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.01839965023100376
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.0017518214881420135
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.0008083656430244446
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.0023203929886221886
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": -0.009498771280050278
+            }
+          ],
+          "latency_ms": [
+            115.29430001974106,
+            124.83760016039014,
+            113.08729997836053
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "검고 흰 줄무늬가 있는 얼룩말",
+          "relevant": [
+            "zebra.png"
+          ],
+          "ranking": [
+            {
+              "file": "zebra.png",
+              "cosine": 0.12646014988422394
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.01564674638211727
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.016596859320998192
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": -0.016693221405148506
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.025625528767704964
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": -0.027627186849713326
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": -0.03034907951951027
+            }
+          ],
+          "latency_ms": [
+            129.9910000525415,
+            118.34340007044375,
+            245.48209994100034
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "얼룩말 옆모습",
+          "relevant": [
+            "zebra.png"
+          ],
+          "ranking": [
+            {
+              "file": "zebra.png",
+              "cosine": 0.13069327175617218
+            },
+            {
+              "file": "road.png",
+              "cosine": -0.0027966704219579697
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": -0.004355482757091522
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": -0.0046486034989356995
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": -0.014351658523082733
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": -0.038990773260593414
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": -0.04237135499715805
+            }
+          ],
+          "latency_ms": [
+            115.64640002325177,
+            104.64689997024834,
+            114.57139998674393
+          ],
+          "hit_at_1": 1.0,
+          "hit_at_5": 1.0,
+          "reciprocal_rank": 1.0,
+          "recall_at_3": 1.0
+        },
+        {
+          "query": "강아지",
+          "relevant": [],
+          "ranking": [
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.06183912977576256
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.050717733800411224
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.048452228307724
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.04062884673476219
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.03504578769207001
+            },
+            {
+              "file": "road.png",
+              "cosine": 0.027688829228281975
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.024794509634375572
+            }
+          ],
+          "latency_ms": [
+            134.81139997020364,
+            86.40779997222126,
+            181.18659988977015
+          ]
+        },
+        {
+          "query": "비행기",
+          "relevant": [],
+          "ranking": [
+            {
+              "file": "road.png",
+              "cosine": 0.049671754240989685
+            },
+            {
+              "file": "beach.jpg",
+              "cosine": 0.026468737050890923
+            },
+            {
+              "file": "Test3.jpg",
+              "cosine": 0.011364881880581379
+            },
+            {
+              "file": "zebra.png",
+              "cosine": 0.007332127541303635
+            },
+            {
+              "file": "Test1.jpg",
+              "cosine": 0.007129905745387077
+            },
+            {
+              "file": "seal.jpg",
+              "cosine": 0.005668275058269501
+            },
+            {
+              "file": "Test2.jpg",
+              "cosine": 0.002981215715408325
+            }
+          ],
+          "latency_ms": [
+            130.17689995467663,
+            86.75360004417598,
+            107.02180000953376
+          ]
+        }
+      ],
+      "quality": {
+        "hit_at_1": 1.0,
+        "hit_at_5": 1.0,
+        "reciprocal_rank": 1.0,
+        "recall_at_3": 1.0,
+        "positive_queries": 18,
+        "top1_correct": 18
+      },
+      "timing": {
+        "image_ms_per_image_median": 317.75070005096495,
+        "image_round_seconds": [
+          2.262248400133103,
+          2.1191067001782358,
+          2.2400708999484777
+        ],
+        "image_7_total_seconds_median": 2.2400708999484777,
+        "query_ms_median": 115.59050006326288,
+        "query_ms_p95": 227.8899051365442,
+        "image_sample_count": 21,
+        "query_sample_count": 60
+      },
+      "weight_repository": "timm/ViT-B-16-SigLIP2",
+      "cached_revision": "eee10eff6dd8cabae2d7f379d4e8cfcd352030aa"
+    }
+  }
+}
