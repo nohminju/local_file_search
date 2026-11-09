@@ -20,18 +20,18 @@ class FaissManager:
         return vectors
 
     def add_documents(self, vectors, chunks):
-        """
-        DocumentEmbedder.embeddings 와 DocumentChunk 리스트를 직접 전달받음
-        """
         if len(vectors) == 0 or len(chunks) == 0:
             return
+        if len(vectors) != len(chunks):
+            raise ValueError("벡터 수와 청크 수가 일치하지 않습니다.")
+
         vectors = self._prep_vectors(vectors, self.dims['doc'])
 
         if self.indices['doc'] is None:
             self.indices['doc'] = faiss.IndexFlatIP(self.dims['doc'])
 
         self.indices['doc'].add(vectors)
-        
+
         for c in chunks:
             self.chunk_metas['doc'].append({
                 "file_name": getattr(c, 'file_name', ''),
@@ -41,11 +41,11 @@ class FaissManager:
             })
 
     def add_images(self, vectors, chunks):
-        """
-        이미지 임베딩 벡터와 DocumentChunk 리스트를 직접 전달받음
-        """
         if len(vectors) == 0 or len(chunks) == 0:
             return
+        if len(vectors) != len(chunks):
+            raise ValueError("벡터 수와 청크 수가 일치하지 않습니다.")
+
         vectors = self._prep_vectors(vectors, self.dims['img'])
 
         if self.indices['img'] is None:
@@ -99,8 +99,11 @@ class FaissManager:
         filenames = {'doc': 'documents.faiss', 'img': 'images.faiss'}
 
         for key in ['doc', 'img']:
+            idx_path = os.path.join(folder, filenames[key])
             if self.indices[key] is not None:
-                faiss.write_index(self.indices[key], os.path.join(folder, filenames[key]))
+                faiss.write_index(self.indices[key], idx_path)
+            elif os.path.exists(idx_path):
+                os.remove(idx_path)
 
         with open(os.path.join(folder, "metadata.json"), "w", encoding="utf-8") as f:
             json.dump({
@@ -122,4 +125,11 @@ class FaissManager:
         filenames = {'doc': 'documents.faiss', 'img': 'images.faiss'}
         for key in ['doc', 'img']:
             idx_path = os.path.join(folder, filenames[key])
-            self.indices[key] = faiss.read_index(idx_path) if os.path.exists(idx_path) else None
+            if os.path.exists(idx_path):
+                index = faiss.read_index(idx_path)
+                meta_len = len(self.chunk_metas.get(key, []))
+                if index.ntotal != meta_len:
+                    raise ValueError(f"{key} 인덱스 수({index.ntotal})와 메타데이터 수({meta_len})가 일치하지 않습니다.")
+                self.indices[key] = index
+            else:
+                self.indices[key] = None
