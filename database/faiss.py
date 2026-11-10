@@ -20,10 +20,10 @@ class FaissManager:
         return vectors
 
     def add_documents(self, vectors, chunks):
-        if len(vectors) == 0 or len(chunks) == 0:
-            return
         if len(vectors) != len(chunks):
             raise ValueError("벡터 수와 청크 수가 일치하지 않습니다.")
+        if len(vectors) == 0:
+            return
 
         vectors = self._prep_vectors(vectors, self.dims['doc'])
 
@@ -41,10 +41,10 @@ class FaissManager:
             })
 
     def add_images(self, vectors, chunks):
-        if len(vectors) == 0 or len(chunks) == 0:
-            return
         if len(vectors) != len(chunks):
             raise ValueError("벡터 수와 청크 수가 일치하지 않습니다.")
+        if len(vectors) == 0:
+            return
 
         vectors = self._prep_vectors(vectors, self.dims['img'])
 
@@ -119,17 +119,25 @@ class FaissManager:
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
 
-        self.dims = meta.get("dims", self.dims)
-        self.chunk_metas = meta.get("chunk_metas", {'doc': [], 'img': []})
+        dims = meta.get("dims", self.dims)
+        chunk_metas = meta.get("chunk_metas", {'doc': [], 'img': []})
+        indices = {'doc': None, 'img': None}
 
+        # 모든 저장 데이터를 검증한 뒤 교체해 복원 실패 시 기존 검색 상태를 유지한다.
         filenames = {'doc': 'documents.faiss', 'img': 'images.faiss'}
         for key in ['doc', 'img']:
             idx_path = os.path.join(folder, filenames[key])
+            meta_len = len(chunk_metas.get(key, []))
             if os.path.exists(idx_path):
                 index = faiss.read_index(idx_path)
-                meta_len = len(self.chunk_metas.get(key, []))
+                if index.d != dims[key]:
+                    raise ValueError(f"{key} 인덱스 차원({index.d})과 메타데이터 차원({dims[key]})이 일치하지 않습니다.")
                 if index.ntotal != meta_len:
                     raise ValueError(f"{key} 인덱스 수({index.ntotal})와 메타데이터 수({meta_len})가 일치하지 않습니다.")
-                self.indices[key] = index
-            else:
-                self.indices[key] = None
+                indices[key] = index
+            elif meta_len:
+                raise ValueError(f"{key} 메타데이터는 있지만 인덱스 파일이 없습니다.")
+
+        self.dims = dims
+        self.chunk_metas = chunk_metas
+        self.indices = indices
