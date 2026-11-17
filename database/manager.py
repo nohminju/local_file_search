@@ -5,6 +5,7 @@ from database.db_info import DocumentInfo
 class Repository:
     def __init__(self, db_path="document_metadata.db"):
         self.db_path = db_path
+        # 객체가 생성될 떄 DB 파일 및 테이블이 없으면 자동으로 초기화
         self._init_db()
 
     def _init_db(self):
