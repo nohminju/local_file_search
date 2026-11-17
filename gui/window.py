@@ -60,13 +60,8 @@ class DocumentSearchApp(ctk.CTk):
         )
         self.query_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
         self.query_entry.bind("<Return>", lambda event: self.search())
-        self.mode = ctk.StringVar(value="문서")
-        self.mode_switch = ctk.CTkSegmentedButton(
-            search_row, values=["문서", "이미지"], variable=self.mode
-        )
-        self.mode_switch.grid(row=0, column=1, padx=(0, 8))
         self.search_button = ctk.CTkButton(search_row, text="검색", width=80, command=self.search)
-        self.search_button.grid(row=0, column=2)
+        self.search_button.grid(row=0, column=1)
         self.search_button.configure(state="disabled")
 
         self.status = ctk.CTkLabel(content, text="폴더 선택 → 분석 → 검색", anchor="w", text_color="#aab2c0")
@@ -143,13 +138,12 @@ class DocumentSearchApp(ctk.CTk):
         if not query:
             self.status.configure(text="검색어를 입력하세요.")
             return
-        mode = "documents" if self.mode.get() == "문서" else "images"
         self.set_busy(True, "검색 중...")
         self.show_message("검색 결과를 불러오고 있습니다...")
-        self.run_worker(self.search_job, query, mode)
+        self.run_worker(self.search_job, query)
 
-    def search_job(self, query, mode):
-        return self.service.search(query, mode=mode)
+    def search_job(self, query):
+        return self.service.search(query)
 
     def poll_messages(self):
         try:
@@ -168,7 +162,7 @@ class DocumentSearchApp(ctk.CTk):
                         self.show_message("분석이 완료되었습니다. 검색어를 입력하세요.")
                 else:
                     self.show_results(result)
-                    self.status.configure(text=f"검색 결과 {len(result)}개 (유사도는 정확도/확률이 아닙니다)")
+                    self.status.configure(text=f"검색 결과 {len(result)}개 (점수는 정확도/확률이 아닙니다)")
         except queue.Empty:
             pass
         self.after(100, self.poll_messages)
@@ -186,7 +180,7 @@ class DocumentSearchApp(ctk.CTk):
             name = ctk.CTkLabel(card, text=info.file_name, anchor="w", font=ctk.CTkFont(weight="bold"))
             name.grid(row=0, column=0, sticky="ew", padx=12, pady=(9, 1))
             detail = ctk.CTkLabel(
-                card, text=f"유사도 {score:.4f}  |  {path}", anchor="w", text_color="#aab2c0"
+                card, text=f"통합 순위 점수 {score:.4f}  |  {path}", anchor="w", text_color="#aab2c0"
             )
             detail.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 9))
             button = ctk.CTkButton(card, text="열기", width=58, command=lambda p=path: self.open_file(p))

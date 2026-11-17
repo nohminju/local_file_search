@@ -88,7 +88,7 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(len([r for r in results if r[0].file_name == 'apple.pdf']), 1)
         self.query_encoder.encode_text.assert_not_called()
         self.embedder.model.encode.assert_called_with(['apple query'])
-        self.assertEqual(len(self.service.search('apple query', top_k=2)), 2)
+        self.assertEqual(len(self.service.search('apple query', top_k=2, mode='documents')), 2)
 
     def test_image_search_uses_clip_query_and_returns_file_info(self):
         self.make_documents()
@@ -206,3 +206,54 @@ class ConnectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.service.search('query', mode='unknown')
 
+
+    def test_hybrid_merges_by_file_rank_instead_of_raw_similarity(self):
+        apple = SimpleNamespace(file_id=1, file_name='apple.pdf')
+        banana = SimpleNamespace(file_id=2, file_name='banana.pptx')
+        photo = SimpleNamespace(file_id=3, file_name='photo.png')
+        self.service.search = Mock(side_effect=[
+            [(apple, 0.99), (banana, 0.01)],
+            [(banana, -0.5), (photo, -0.9)],
+        ])
+        results = self.service.search_hybrid('  query  ', top_k=2)
+        self.assertEqual([info.file_id for info, _ in results], [2, 1])
+        self.assertAlmostEqual(results[0][1], 1 / 62 + 1 / 61)
+        self.assertAlmostEqual(results[1][1], 1 / 61)
+        self.assertEqual([call.kwargs for call in self.service.search.call_args_list],
+                         [dict(top_k=4, mode='documents'), dict(top_k=4, mode='images')])
+        self.assertTrue(all(call.args == ('query',) for call in self.service.search.call_args_list))
+
+    def test_default_search_connects_real_loader_database_and_both_indices(self):
+        self.make_documents()
+        self.service.analyze(self.folder)
+        results = self.service.search('apple query')
+        self.assertEqual(results[0][0].file_name, 'banana.pptx')
+        self.assertEqual({info.file_name for info, _ in results},
+                         {'apple.pdf', 'banana.pptx', 'photo.png'})
+        self.assertEqual(len(results), 3)
+        self.assertTrue(all(info.file_id is not None for info, _ in results))
+
+    def test_hybrid_image_only_folder(self):
+        Image.new('RGB', (8, 8)).save(self.folder / 'photo.png')
+        self.service.analyze(self.folder)
+        results = self.service.search('photo')
+        self.assertEqual([info.file_name for info, _ in results], ['photo.png'])
+        self.assertAlmostEqual(results[0][1], 1 / 61)
+
+    def test_hybrid_text_only_folder(self):
+        presentation = Presentation()
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = 'apple'
+        presentation.save(self.folder / 'text.pptx')
+        self.service.analyze(self.folder)
+        results = self.service.search('apple')
+        self.assertEqual([info.file_name for info, _ in results], ['text.pptx'])
+
+    def test_hybrid_empty_indices_and_invalid_inputs(self):
+        self.assertEqual(self.service.search('query'), [])
+        self.assertEqual(self.service.search_hybrid('   '), [])
+        self.assertEqual(self.service.search_hybrid('query', top_k=0), [])
+        with self.assertRaises(ValueError):
+            self.service.search_hybrid('query', k=-1)
+        self.query_encoder.encode_text.assert_not_called()
+        self.embedder.model.encode.assert_not_called()

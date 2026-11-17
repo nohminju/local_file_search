@@ -45,10 +45,9 @@ def main():
         query = input('검색 문장 (Enter로 종료): ').strip()
         if not query:
             break
-        mode = 'images' if input('이미지 검색은 i, 본문 검색은 Enter: ').strip() == 'i' else 'documents'
-        results = service.search(query, mode=mode)
+        results = service.search(query)
         for info, score in results:
-            print(f'{info.file_name} / {score:.4f}\n{info.file_path}')
+            print(f'{info.file_name} / 통합 순위 점수 {score:.4f}\n{info.file_path}')
         if not results:
             print('해당 검색 대상의 결과가 없습니다.')
 
