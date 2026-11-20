@@ -34,14 +34,15 @@ def normalized(text):
 def main():
     parser = argparse.ArgumentParser(description='캐시된 실제 모델로 샘플 검색 순위를 기록합니다.')
     parser.add_argument('--folder', type=Path, default=ROOT / 'test_esset')
-    parser.add_argument('--output', type=Path, default=ROOT / 'docs/REAL_SAMPLE_RESULTS_2026-11-20.json')
+    parser.add_argument('--output', type=Path, default=ROOT / 'docs/REAL_SAMPLE_SENTENCE_RESULTS_2026-11-20.json')
+    parser.add_argument('--document-backend', choices=['sentence', 'openclip'], default='sentence')
     parser.add_argument('--threads', type=int, default=4)
     args = parser.parse_args()
     if args.threads < 1 or not args.folder.is_dir():
         parser.error('존재하는 샘플 폴더와 양수 threads가 필요합니다.')
     torch.set_num_threads(args.threads)
     started = time.perf_counter()
-    service = build_service()
+    service = build_service(document_backend=args.document_backend)
     model_seconds = time.perf_counter() - started
     original_loader = service.loader.process_file
     extracted = []
@@ -61,7 +62,8 @@ def main():
         documents, failures = service.analyze(args.folder)
         analysis_seconds = time.perf_counter() - started
         report = {'python': platform.python_version(), 'torch': torch.__version__,
-                  'model': 'xlm-roberta-base-ViT-B-32', 'pretrained': 'laion5b_s13b_b90k',
+                  'image_model': 'xlm-roberta-base-ViT-B-32',
+                  'document_model': 'jhgan/ko-sroberta-multitask' if args.document_backend == 'sentence' else 'xlm-roberta-base-ViT-B-32', 'pretrained': 'laion5b_s13b_b90k',
                   'device': str(service.image_encoder.device), 'threads': args.threads,
                   'document_min_score': service.document_min_score, 'image_min_score': service.image_min_score,
                   'ranking': 'max((raw - model_floor) / (1 - model_floor)); no sum',

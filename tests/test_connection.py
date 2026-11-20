@@ -8,7 +8,6 @@ import unittest
 from unittest.mock import Mock
 
 import numpy as np
-import torch
 from PIL import Image
 from pypdf import PdfWriter
 from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
@@ -20,19 +19,16 @@ from database.manager import Repository
 from database.faiss import FaissManager
 from file_loader.document_loader import DocumentLoader
 from file_encoder.document_encoder import DocumentEncoder
-from similarity.document_embedder import DocumentEmbedder
+from similarity.sentence_document_embedder import SentenceDocumentEmbedder
 
 
 class ModelOutput:
     def eval(self):
         return self
 
-    def encode_text(self, tokens):
-        return tokens.float()
+    def encode(self, texts, **kwargs):
+        return np.array([[1., 0.] if 'apple' in text else [0., 1.] for text in texts])
 
-
-def tokenize(texts):
-    return torch.tensor([[1., 0.] if 'apple' in text else [0., 1.] for text in texts])
 
 
 class ConnectionTests(unittest.TestCase):
@@ -46,7 +42,7 @@ class ConnectionTests(unittest.TestCase):
         self.document_encoder = Mock(wraps=DocumentEncoder(self.image_encoder))
         self.query_encoder = Mock()
         self.query_encoder.encode_text.return_value = np.array([[0., 1.]])
-        self.embedder = DocumentEmbedder(model=Mock(wraps=ModelOutput()), tokenizer=Mock(side_effect=tokenize))
+        self.embedder = SentenceDocumentEmbedder(model=Mock(wraps=ModelOutput()))
         self.repository = Repository(str(self.folder / 'metadata.db'))
         self.vector_index = FaissManager(doc_dim=2, img_dim=2)
         self.service = DocumentSearch(DocumentLoader(), self.image_encoder, self.document_encoder,
@@ -95,18 +91,18 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(results[0][0].file_name, 'apple.pdf')
         self.assertEqual(len([r for r in results if r[0].file_name == 'apple.pdf']), 1)
         self.query_encoder.encode_text.assert_not_called()
-        self.embedder.tokenizer.assert_called_with(['apple query'])
+        self.embedder.model.encode.assert_called_with(['apple query'], batch_size=8, convert_to_numpy=True, normalize_embeddings=True, show_progress_bar=False)
         self.assertEqual(len(self.service.search('apple query', top_k=2, mode='documents')), 2)
 
     def test_image_search_uses_clip_query_and_returns_file_info(self):
         self.make_documents()
         self.service.analyze(self.folder)
-        self.embedder.model.encode_text.reset_mock()
+        self.embedder.model.encode.reset_mock()
         results = self.service.search('yellow image', mode='images')
         self.assertEqual({info.file_name for info, score in results}, {'photo.png', 'banana.pptx'})
         self.assertTrue(all(abs(score - 1.0) < 1e-6 for info, score in results))
         self.query_encoder.encode_text.assert_called_once_with('yellow image')
-        self.embedder.model.encode_text.assert_not_called()
+        self.embedder.model.encode.assert_not_called()
 
     def test_image_search_deduplicates_chunks_before_limiting_files(self):
         self.make_documents()
@@ -373,7 +369,7 @@ class ConnectionTests(unittest.TestCase):
         presentation.save(self.folder / 'a.pptx')
         presentation.save(self.folder / 'b.pptx')
         self.service.analyze(self.folder)
-        self.embedder.tokenizer.assert_called_once_with(['apple same text'])
+        self.embedder.model.encode.assert_called_once_with(['apple same text'], batch_size=8, convert_to_numpy=True, normalize_embeddings=True, show_progress_bar=False)
         self.assertEqual(self.vector_index.indices['doc'].ntotal, 2)
         self.assertEqual({m['file_name'] for m in self.vector_index.chunk_metas['doc']}, {'a.pptx', 'b.pptx'})
         self.assertEqual(len(self.service.search('apple', mode='documents')), 2)

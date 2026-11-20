@@ -30,8 +30,8 @@ class SharedTextEncoderTests(unittest.TestCase):
         with patch('app.ImageEncoder') as image_class, \
              patch('app.KoreanTextEncoder') as text_class, \
              patch('app.open_clip.get_tokenizer') as tokenizer, \
-             patch('app.DocumentEmbedder') as document_class, patch('app.Repository'), patch('app.FaissManager') as index_class:
-            service = build_service()
+             patch('app.OpenCLIPDocumentEmbedder') as document_class, patch('app.Repository'), patch('app.FaissManager') as index_class:
+            service = build_service(document_backend='openclip')
             try:
                 text_class.assert_called_once_with(
                     model=image_class.return_value.model,
@@ -48,3 +48,26 @@ class SharedTextEncoderTests(unittest.TestCase):
                 index_class.assert_called_once_with(doc_dim=512, img_dim=512)
             finally:
                 service.session_directory.cleanup()
+
+
+    def test_default_factory_uses_separate_sentence_model_and_matching_dimensions(self):
+        with patch('app.ImageEncoder') as image_class, \
+             patch('app.KoreanTextEncoder'), patch('app.open_clip.get_tokenizer'), \
+             patch('app.DocumentEmbedder') as sentence_class, \
+             patch('app.OpenCLIPDocumentEmbedder') as clip_class, \
+             patch('app.Repository'), patch('app.FaissManager') as index_class:
+            service = build_service()
+            try:
+                sentence_class.assert_called_once_with()
+                clip_class.assert_not_called()
+                self.assertIs(service.document_embedder, sentence_class.return_value)
+                self.assertIsNot(service.document_embedder.model, image_class.return_value.model)
+                index_class.assert_called_once_with(doc_dim=768, img_dim=512)
+            finally:
+                service.session_directory.cleanup()
+
+    def test_invalid_text_backend_is_rejected_before_loading_models(self):
+        with patch('app.ImageEncoder') as load:
+            with self.assertRaises(ValueError):
+                build_service(document_backend='unknown')
+            load.assert_not_called()

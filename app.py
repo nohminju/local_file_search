@@ -6,14 +6,17 @@ import open_clip
 from file_loader.document_loader import DocumentLoader
 from file_encoder.image_encoder import ImageEncoder
 from file_encoder.document_encoder import DocumentEncoder
-from similarity.document_embedder import DocumentEmbedder
+from similarity.document_embedder import DocumentEmbedder as OpenCLIPDocumentEmbedder
+from similarity.sentence_document_embedder import SentenceDocumentEmbedder as DocumentEmbedder
 from query_encoder.text_encoder import KoreanTextEncoder
 from database.manager import Repository
 from database.faiss import FaissManager
 from connection.service import DocumentSearch
 
 
-def build_service():
+def build_service(document_backend='sentence'):
+    if document_backend not in ('sentence', 'openclip'):
+        raise ValueError('본문 모델은 sentence 또는 openclip입니다.')
     model_name = 'xlm-roberta-base-ViT-B-32'
     pretrained = 'laion5b_s13b_b90k'
     image_encoder = ImageEncoder(model_name=model_name, pretrained=pretrained)
@@ -22,15 +25,21 @@ def build_service():
         model=image_encoder.model,
         tokenizer=open_clip.get_tokenizer(model_name),
     )
-    document_embedder = DocumentEmbedder(
-        model=image_encoder.model,
-        tokenizer=query_encoder.tokenizer,
-    )
+    if document_backend == 'sentence':
+        document_embedder = DocumentEmbedder()
+        document_dim = 768
+    else:
+        # 이전 설정과 실제 샘플 비교·진단할 때만 사용한다.
+        document_embedder = OpenCLIPDocumentEmbedder(
+            model=image_encoder.model,
+            tokenizer=query_encoder.tokenizer,
+        )
+        document_dim = 512
     session = TemporaryDirectory(prefix='document-search-')
     repository = Repository(str(Path(session.name) / 'document_metadata.db'))
     service = DocumentSearch(DocumentLoader(), image_encoder, document_encoder,
                              document_embedder, query_encoder, repository,
-                             FaissManager(doc_dim=512, img_dim=512))
+                             FaissManager(doc_dim=document_dim, img_dim=512))
     service.session_directory = session
     return service
 

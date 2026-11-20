@@ -1,3 +1,5 @@
+> 후속 개선: 현재 기본 본문 모델은 ko-sroberta이며 아래 내용은 이전 단계의 이력입니다. [최신 개선·비교 보고서](TEXT_MODEL_IMPROVEMENT_2026-11-20.md)를 참고하세요.
+
 # main 및 document-search-demo-v2 통합 — 2026-11-20
 
 ## 기준과 보존 상태

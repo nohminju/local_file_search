@@ -23,7 +23,7 @@ class DocumentEmbedder:
         self.model.eval()
 
         self.chunks = []         # 임베딩된 원본 DocumentChunk 리스트
-        self.embeddings = None   # 생성된 (N, 512) 2차원 벡터 배열
+        self.embeddings = None   # 생성된 (N, 모델 차원) 2차원 벡터 배열
 
     def _encode(self, text_list):
         batches = []
@@ -44,14 +44,14 @@ class DocumentEmbedder:
             return None
 
         texts = [c.text.strip() for c in self.chunks]
-        self.embeddings = self._encode(texts)  # (N, 512) 2차원 배열
+        self.embeddings = self._encode(texts)  # (N, 모델 차원) 2차원 배열
         return self.embeddings
 
     def encode_query(self, query):
         query = query.strip()
         if not query:
             return None
-        return self._encode([query])  # FAISS 규격에 맞춰 (1, 512) 2차원 배열로 반환
+        return self._encode([query])  # FAISS 규격에 맞춰 (1, 모델 차원) 2차원 배열로 반환
 
     def search(self, query, top_k=3, min_score=0.0, debug=False):
         if self.embeddings is None or len(self.embeddings) == 0:

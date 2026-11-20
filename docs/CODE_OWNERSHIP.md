@@ -31,3 +31,5 @@
 | 본문 인코더 | [duoloo · 0b20d2d](https://github.com/Edmond1889/local_file_search/blob/0b20d2d/document_embedder.py) |
 | 이미지·문서 이미지 인코더 | [hyunsli7557-ux · f86f7f8](https://github.com/Edmond1889/local_file_search/blob/f86f7f8/encoders/image_encoder.py), [b6dd0e8](https://github.com/Edmond1889/local_file_search/blob/b6dd0e8/encoders/document_encoder.py) |
 | SQLite·FAISS | [nohminju · d3a7462](https://github.com/Edmond1889/local_file_search/blob/d3a7462/database/manager.py), [2a4d883](https://github.com/Edmond1889/local_file_search/blob/2a4d883/database/faiss.py) |
+
+- 실제 샘플 비교 후 본문/본문 검색어는 SentenceDocumentEmbedder(ko-sroberta 768차원), 이미지/이미지 검색어는 기존 OpenCLIP(512차원)으로 분리했습니다. 기존 OpenCLIP 본문 구현은 비교 경로로 보존했습니다. [비교 보고서](TEXT_MODEL_IMPROVEMENT_2026-11-20.md)
