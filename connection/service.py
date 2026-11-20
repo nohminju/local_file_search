@@ -8,6 +8,10 @@ from pathlib import Path
 from database.db_info import DocumentInfo
 from file_loader.document_loader import DocumentScanner
 
+# 팀원 스캐너의 지원 목록을 그대로 사용하고 검색 경로 분류만 서비스에서 담당한다.
+IMAGE_EXTENSIONS = DocumentScanner.SUPPORTED_EXTENSIONS & {'.jpg', '.jpeg', '.png', '.webp'}
+DOCUMENT_EXTENSIONS = DocumentScanner.SUPPORTED_EXTENSIONS & {'.pdf', '.pptx'}
+
 
 class ScoredFile(tuple):
     """기존 (파일, 점수) 규격을 유지하며 본문/이미지 출처를 보존한다."""
@@ -78,7 +82,7 @@ class DocumentSearch:
                 continue
 
             # 문서 이미지도 chunk_type이 image이므로 원본 확장자로 인코더를 고른다.
-            encoder = (self.document_encoder if path.suffix.lower() in DocumentScanner.DOCUMENT_EXTENSIONS
+            encoder = (self.document_encoder if path.suffix.lower() in DOCUMENT_EXTENSIONS
                        else self.image_encoder)
             # 모델 오류는 읽기 실패로 숨기지 않고 호출자에게 전달한다.
             file_images = [chunk for chunk in chunks if chunk.image is not None]
@@ -166,8 +170,8 @@ class DocumentSearch:
         doc_hits = self.search(query, top_k=count, mode='documents')
         image_hits = self.search(query, top_k=count, mode='images')
         records = {}
-        image_extensions = DocumentScanner.IMAGE_EXTENSIONS
-        document_extensions = DocumentScanner.DOCUMENT_EXTENSIONS
+        image_extensions = IMAGE_EXTENSIONS
+        document_extensions = DOCUMENT_EXTENSIONS
         for mode, hits in (('documents', doc_hits), ('images', image_hits)):
             for info, raw in hits:
                 extension = Path(info.file_path).suffix.lower()

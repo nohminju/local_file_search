@@ -35,4 +35,13 @@
 | 이미지·문서 이미지 인코더 | [hyunsli7557-ux · f86f7f8](https://github.com/Edmond1889/local_file_search/blob/f86f7f8/encoders/image_encoder.py), [b6dd0e8](https://github.com/Edmond1889/local_file_search/blob/b6dd0e8/encoders/document_encoder.py) |
 | SQLite·FAISS | [nohminju · d3a7462](https://github.com/Edmond1889/local_file_search/blob/d3a7462/database/manager.py), [2a4d883](https://github.com/Edmond1889/local_file_search/blob/2a4d883/database/faiss.py) |
 
-과거 OpenCLIP 본문 구현은 원본 API로 남아 있으나 앱의 모델 선택 분기는 제거했습니다. 현재 본문 클래스가 그 API를 상속해 사용합니다. 파일명 검색은 중간 실험에서 추가했다가 제거했으므로 파일명 일치 출처를 현재 기능으로 설명하지 않습니다.
+과거 OpenCLIP 본문 구현은 원본 API로 남아 있으나 앱의 모델 선택 분기는 제거했습니다. 현재 본문 연결 클래스(connection/sentence_document_embedder.py)가 원본 API를 상속해 사용합니다. 파일명 검색은 중간 실험에서 추가했다가 제거했으므로 파일명 일치 출처를 현재 기능으로 설명하지 않습니다.
+
+
+## 팀원 파일 원본 복원 — 2026-11-20 최종 반영
+
+사용자 요청으로 팀원 파일 5개(database/faiss.py, file_encoder/document_encoder.py, file_loader/document_loader.py, query_encoder/text_encoder.py, similarity/document_embedder.py)를 원본 PR #27 병합 직전 160f055와 동일하게 복원했습니다. 팀원 담당 디렉터리에 AI가 추가한 본문 어댑터도 남기지 않도록 connection/sentence_document_embedder.py로 옮겼습니다. 긴 본문 분할은 connection/text_preparation.py에 유지합니다.
+
+본문 ko-sroberta와 이미지 OpenCLIP 분리는 연결 모듈에서 유지하며 app.py가 FAISS 차원을 명시합니다. 원본 FAISS의 기본 본문 차원은 512지만 앱은 본문용 768을 전달합니다. 원본 FAISS는 chunk_type을 메타데이터로 저장하지 않으므로 과거 filename 메타데이터 보호 조건은 키가 있을 때만 동작합니다. 현재 앱은 메모리 인덱스를 새로 만들고 파일명을 인코딩하지 않습니다.
+
+이 복원 이후 테스트 결과는 ACTIVITY_LOG에 추가합니다. 이전 실모델 수치는 복원 전 실행의 기록이며 새 실행 결과로 표현하지 않습니다. 앞서 서술된 팀원 파일 수정은 작업 과정의 이력이고 최종 차이에서는 제거합니다. 현재 원본 파일과 연결 코드의 구분은 이 절을 기준으로 합니다.

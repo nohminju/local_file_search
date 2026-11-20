@@ -19,7 +19,7 @@ from database.manager import Repository
 from database.faiss import FaissManager
 from file_loader.document_loader import DocumentLoader
 from file_encoder.document_encoder import DocumentEncoder
-from similarity.sentence_document_embedder import SentenceDocumentEmbedder
+from connection.sentence_document_embedder import SentenceDocumentEmbedder
 
 
 class ModelOutput:
@@ -298,7 +298,7 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(raw[1], 0.)
         self.assertEqual(self.vector_index.indices['doc'].ntotal, 1)
         self.assertEqual([m['text'] for m in self.vector_index.chunk_metas['doc']], ['banana'])
-        self.assertTrue(all(m['chunk_type'] != 'filename' for m in self.vector_index.chunk_metas['doc']))
+        self.assertTrue(all(m.get('chunk_type') != 'filename' for m in self.vector_index.chunk_metas['doc']))
 
     def test_image_filename_does_not_create_a_fake_body_match(self):
         from connection.text_preparation import DocumentTextPreparer

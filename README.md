@@ -64,8 +64,19 @@ cd C:\Capstone\document-search-demo-v3
 python -B -m unittest discover -s tests -v
 ```
 
-2026-11-20 구조 정리 후 회귀 테스트 80개가 통과했습니다. 실제 38개 샘플·질의 16개에서 원본 유사도 규칙과 파일명 제외를 확인했습니다. 고양이 3개·데이터베이스·동적계획법·딥러닝은 1위였지만 피자 8위·비행기 12위·페르소나 주제 질의 12위 등 남은 오류가 있습니다. 분석 후 질의별 검색은 이번 실행에서 약 0.43~0.55초였습니다. [현재 정렬 규칙·전후 순위](docs/SEARCH_BEHAVIOR.md)와 [원시 점수](docs/records/2026-11-20/RAW_SIMILARITY_COMPARISON_2026-11-20.json)를 참고하세요. 고정된 로컬 표본의 결과이며 일반 정확도를 보장하지 않습니다.
+2026-11-20 팀원 파일 복원 후 회귀 테스트 79개가 통과했습니다. 실제 38개 샘플·질의 16개에서 원본 유사도 규칙과 파일명 제외를 확인했습니다. 고양이 3개·데이터베이스·동적계획법·딥러닝은 1위였지만 피자 8위·비행기 12위·페르소나 주제 질의 12위 등 남은 오류가 있습니다. 분석 후 질의별 검색은 이번 실행에서 약 0.43~0.55초였습니다. [현재 정렬 규칙·전후 순위](docs/SEARCH_BEHAVIOR.md)와 [원시 점수](docs/records/2026-11-20/RAW_SIMILARITY_COMPARISON_2026-11-20.json)를 참고하세요. 고정된 로컬 표본의 결과이며 일반 정확도를 보장하지 않습니다.
 
 무거운 Qwen 재정렬 모델은 사용자 요청으로 약 4.27GB 삭제했고 앱 연결도 제거했습니다. 추가 모델 준비 없이 `python app.py --gui`로 실행합니다. 이미 열린 GUI는 재시작·재분석해야 최신 규칙이 적용됩니다.
 
 과거 설명(`docs/archive/`)과 원시 결과(`docs/records/`)는 로컬 보관 자료이며 Git에서 제외합니다. 해당 자료 링크는 자료가 있는 PC에서만 열립니다. 현재 동작과 주요 검증 결과는 [검색 안내](docs/SEARCH_BEHAVIOR.md)에 남겼습니다.
+
+
+## 팀원 파일 원본 복원 — 2026-11-20 최종 반영
+
+사용자 요청으로 팀원 파일 5개(database/faiss.py, file_encoder/document_encoder.py, file_loader/document_loader.py, query_encoder/text_encoder.py, similarity/document_embedder.py)를 원본 PR #27 병합 직전 160f055와 동일하게 복원했습니다. 팀원 담당 디렉터리에 AI가 추가한 본문 어댑터도 남기지 않도록 connection/sentence_document_embedder.py로 옮겼습니다. 긴 본문 분할은 connection/text_preparation.py에 유지합니다.
+
+본문 ko-sroberta와 이미지 OpenCLIP 분리는 연결 모듈에서 유지하며 app.py가 FAISS 차원을 명시합니다. 원본 FAISS의 기본 본문 차원은 512지만 앱은 본문용 768을 전달합니다. 원본 FAISS는 chunk_type을 메타데이터로 저장하지 않으므로 과거 filename 메타데이터 보호 조건은 키가 있을 때만 동작합니다. 현재 앱은 메모리 인덱스를 새로 만들고 파일명을 인코딩하지 않습니다.
+
+이 복원 이후 테스트 결과는 ACTIVITY_LOG에 추가합니다. 이전 실모델 수치는 복원 전 실행의 기록이며 새 실행 결과로 표현하지 않습니다. 앞서 서술된 팀원 파일 수정은 작업 과정의 이력이고 최종 차이에서는 제거합니다. 현재 원본 파일과 연결 코드의 구분은 이 절을 기준으로 합니다.
+
+통합을 위해 자체 추가한 [긴 본문 분할](connection/text_preparation.py)과 [본문 모델 어댑터](connection/sentence_document_embedder.py)의 이유·호출 위치·비용은 [검색 동작](docs/SEARCH_BEHAVIOR.md)의 마지막 절에 정리했습니다. 팀원 원본 파일의 최종 차이는 없습니다.
