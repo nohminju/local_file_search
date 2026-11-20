@@ -11,7 +11,7 @@ from file_loader.document_loader import DocumentScanner
 
 @dataclass(frozen=True)
 class SearchResult:
-    """score는 선택 모델의 원본 유사도, sort_score는 RRF 정렬값이다."""
+    """score는 선택 모델의 원본 유사도, sort_score는 기준 초과 비율이다."""
     file: DocumentInfo
     score: float
     source: str
@@ -146,13 +146,11 @@ class DocumentSearch:
                 break
         return results
 
-    def search_hybrid(self, query, top_k=5, k=60):
-        """모델별 원본 유사도 하한 필터 → 통과 목록의 순위를 RRF로 결합한다."""
+    def search_hybrid(self, query, top_k=5):
+        """모델별 하한 필터 후 기준 초과 비율의 최댓값으로 정렬한다. 합산하지 않는다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
-        if not isfinite(k) or k < 0:
-            raise ValueError('RRF의 k는 0 이상의 유한한 값이어야 합니다.')
 
         # 필터·내용 중복 제거 후에도 결과를 채울 수 있도록 등록 파일 전체를 후보로 받는다.
         count = max(len(self.file_ids), top_k * 2)
@@ -167,22 +165,22 @@ class DocumentSearch:
                 record = records.setdefault(info.file_id, dict(file=info, documents=None, images=None))
                 record[mode] = score
 
-        # 하한 미달은 순위에도 포함하지 않는다. 파일마다 각 목록에서 한 번만 기여한다.
-        for mode, floor in (('documents', self.document_min_score),
-                            ('images', self.image_min_score)):
-            eligible = [r for r in records.values() if r[mode] is not None and r[mode] >= floor]
-            eligible.sort(key=lambda r: (-r[mode], r['file'].file_path.casefold(), r['file'].file_path))
-            for rank, record in enumerate(eligible, start=1):
-                contribution = 1.0 / (k + rank)
-                record['rrf'] = record.get('rrf', 0.0) + contribution
-                # 표시 모델은 RRF 기여가 큰 쪽, 동점이면 본문으로 정한다.
-                if contribution > record.get('best_contribution', 0.0):
-                    record['best_contribution'] = contribution
-                    record['source'] = mode
-
-        matches = [SearchResult(r['file'], r[r['source']], r['source'], r['rrf'],
-                                r['documents'], r['images'])
-                   for r in records.values() if 'rrf' in r]
+        matches = []
+        for record in records.values():
+            eligible = []
+            for mode, floor in (('documents', self.document_min_score),
+                                ('images', self.image_min_score)):
+                raw = record[mode]
+                if raw is not None and raw >= floor:
+                    # 서로 다른 하한을 0, 코사인 유사도 1을 1로 맞춘 운영상 정렬값.
+                    # 확률 보정이 아니며 두 검색에 등장해도 점수를 더하지 않는다.
+                    eligible.append(((min(raw, 1.0) - floor) / (1.0 - floor), mode, raw))
+            if not eligible:
+                continue
+            # 같은 정렬값이면 본문을 표시한다. 파일 간 동점은 아래에서 경로로 정한다.
+            sort_score, source, raw = max(eligible, key=lambda item: item[0])
+            matches.append(SearchResult(record['file'], raw, source, sort_score,
+                                        record['documents'], record['images']))
 
         matches.sort(key=lambda result: (-result.sort_score,
                                          result.file.file_path.casefold(), result.file.file_path))

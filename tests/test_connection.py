@@ -227,7 +227,7 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(result.source, 'images')
         self.assertIsNone(result.document_score)
         self.assertEqual(result.image_score, 0.260748)
-        self.assertAlmostEqual(result.sort_score, 1 / 61)
+        self.assertAlmostEqual(result.sort_score, (0.260748 - 0.2) / 0.8)
         self.assertTrue(all(call.args == ('누워있는 고양이',)
                             for call in self.service.search.call_args_list))
 
@@ -239,56 +239,75 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual([r.file.file_id for r in results], [2])
         self.assertEqual(results[0].score, 0.260748)
 
-    def test_rrf_uses_ranks_after_filter_instead_of_raw_score_magnitude(self):
+    def test_model_specific_floors_control_order_instead_of_raw_max(self):
         document = self.mock_hit(1, '/db.pdf')
         photo = self.mock_hit(2, '/cat.jpg')
         self.service.search = Mock(side_effect=[[(document, 0.43)], [(photo, 0.28)]])
         results = self.service.search_hybrid('query')
         self.assertEqual([r.file.file_id for r in results], [2, 1])
         self.assertEqual([r.score for r in results], [0.28, 0.43])
-        self.assertAlmostEqual(results[0].sort_score, results[1].sort_score)
-        self.assertAlmostEqual(results[0].sort_score, 1 / 61)
+        self.assertGreater(results[0].sort_score, results[1].sort_score)
 
-    def test_rrf_sums_contributions_from_both_filtered_lists(self):
+    def test_second_search_does_not_raise_score_unless_it_is_stronger(self):
         shared = self.mock_hit(1, '/shared.pdf')
-        self.service.search = Mock(side_effect=[[(shared, 0.7)], [], [(shared, 0.7)], [(shared, 0.3)]])
+        self.service.search = Mock(side_effect=[[(shared, 0.7)], [],
+                                               [(shared, 0.7)], [(shared, 0.3)],
+                                               [(shared, 0.7)], [(shared, 0.8)]])
         single = self.service.search_hybrid('query')[0]
         both = self.service.search_hybrid('query')[0]
-        self.assertAlmostEqual(single.sort_score, 1 / 61)
-        self.assertAlmostEqual(both.sort_score, 2 / 61)
-        self.assertEqual(both.document_score, 0.7)
-        self.assertEqual(both.image_score, 0.3)
+        stronger_image = self.service.search_hybrid('query')[0]
+        self.assertAlmostEqual(single.sort_score, 0.5)
+        self.assertEqual(single.sort_score, both.sort_score)
+        self.assertEqual((both.document_score, both.image_score), (0.7, 0.3))
+        self.assertAlmostEqual(stronger_image.sort_score, 0.75)
+        self.assertEqual(stronger_image.source, 'images')
 
     def test_winning_modality_keeps_both_original_scores(self):
         shared = self.mock_hit(1, '/shared.pdf')
         self.service.search = Mock(side_effect=[[(shared, 0.43)], [(shared, 0.28)]])
         result = self.service.search_hybrid('query')[0]
-        self.assertEqual((result.score, result.source), (0.43, 'documents'))
+        self.assertEqual((result.score, result.source), (0.28, 'images'))
         self.assertEqual((result.document_score, result.image_score), (0.43, 0.28))
 
-    def test_rrf_shared_second_place_outranks_single_first_places(self):
-        a = self.mock_hit(1, '/a.pdf')
-        b = self.mock_hit(2, '/b.jpg')
-        shared = self.mock_hit(3, '/shared.pdf')
-        self.service.search = Mock(side_effect=[[(a, 0.9), (shared, 0.7)],
-                                               [(b, 0.8), (shared, 0.3)]])
-        results = self.service.search_hybrid('query')
-        self.assertEqual([r.file.file_id for r in results], [3, 1, 2])
-        self.assertAlmostEqual(results[0].sort_score, 2 / 62)
-        self.assertAlmostEqual(results[1].sort_score, 1 / 61)
+    def test_cat_photo_beats_weak_pdf_appearing_in_both_searches(self):
+        # 기존 RRF에서는 PDF의 본문 1위+이미지 2위가 사진의 이미지 1위를 앞서는 입력.
+        cat = self.mock_hit(1, '/고양이.jpg')
+        pdf = self.mock_hit(2, '/딥러닝기초.pdf')
+        self.service.search = Mock(side_effect=[[(pdf, 0.41)],
+                                               [(cat, 0.260748), (pdf, 0.21)]])
+        results = self.service.search_hybrid('고양이')
+        self.assertEqual([r.file.file_id for r in results], [1, 2])
+        self.assertAlmostEqual(results[0].sort_score, (0.260748 - 0.2) / 0.8)
+        self.assertAlmostEqual(results[1].sort_score, (0.41 - 0.4) / 0.6)
+        self.assertEqual((results[0].score, results[0].source), (0.260748, 'images'))
 
-    def test_rrf_below_floor_does_not_contribute_to_shared_file(self):
+    def test_accurate_text_only_document_beats_weaker_dual_search_result(self):
+        exact = self.mock_hit(1, '/정확한본문.pdf')
+        weak = self.mock_hit(2, '/무관한자료.pdf')
+        self.service.search = Mock(side_effect=[[(exact, 0.88), (weak, 0.55)],
+                                               [(weak, 0.3)]])
+        results = self.service.search_hybrid('관계형 데이터베이스 기본키')
+        self.assertEqual([r.file.file_id for r in results], [1, 2])
+        self.assertAlmostEqual(results[0].sort_score, 0.8)
+        self.assertAlmostEqual(results[1].sort_score, 0.25)
+        self.assertEqual((results[0].score, results[0].source), (0.88, 'documents'))
+        self.assertIsNone(results[0].image_score)
+
+    def test_below_floor_score_cannot_win_despite_higher_raw_similarity(self):
         shared = self.mock_hit(1, '/shared.pdf')
         self.service.search = Mock(side_effect=[[(shared, 0.39)], [(shared, 0.3)]])
-        result = self.service.search_hybrid('query', k=0)[0]
-        self.assertAlmostEqual(result.sort_score, 1.0)
+        result = self.service.search_hybrid('query')[0]
+        self.assertAlmostEqual(result.sort_score, 0.125)
         self.assertEqual(result.source, 'images')
         self.assertEqual(result.document_score, 0.39)
 
-    def test_rrf_invalid_k_is_rejected(self):
-        for k in (-1, float('nan'), float('inf')):
-            with self.subTest(k=k), self.assertRaises(ValueError):
-                self.service.search_hybrid('query', k=k)
+    def test_equal_best_scores_use_path_order_without_dual_search_bonus(self):
+        single = self.mock_hit(1, '/a.pdf')
+        dual = self.mock_hit(2, '/b.pdf')
+        self.service.search = Mock(side_effect=[[(single, 0.7), (dual, 0.7)], [(dual, 0.3)]])
+        results = self.service.search_hybrid('query')
+        self.assertEqual([r.file.file_id for r in results], [1, 2])
+        self.assertEqual(results[0].sort_score, results[1].sort_score)
 
     def test_same_content_keeps_highest_match_and_fills_limit(self):
         first = self.mock_hit(1, '/a.pdf', 'same')
