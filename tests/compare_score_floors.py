@@ -10,7 +10,7 @@ from connection.service import DocumentSearch
 
 
 def main():
-    report = json.loads((ROOT / 'docs/TEXT_MODEL_COMPARISON_2026-11-20.json').read_text(encoding='utf-8'))
+    report = json.loads((ROOT / 'docs/records/2026-11-20/TEXT_MODEL_COMPARISON_2026-11-20.json').read_text(encoding='utf-8'))
     infos = {d['file']: SimpleNamespace(file_id=i, file_path=d['file'], file_name=d['file'],
                                        file_hash=d['sha256']) for i, d in enumerate(report['corpus'], 1)}
     settings = []
@@ -33,7 +33,7 @@ def main():
                                  image_top1=sum(c['expected_best_rank'] == 1 for c in cases if c['kind'] == 'image'),
                                  text_top1=sum(c['expected_best_rank'] == 1 for c in cases if c['kind'] == 'text'),
                                  cases=cases))
-    output = ROOT / 'docs/SCORE_FLOOR_COMPARISON_2026-11-20.json'
+    output = ROOT / 'docs/records/2026-11-20/SCORE_FLOOR_COMPARISON_2026-11-20.json'
     output.write_text(json.dumps(dict(method='Replay recorded real-model raw scores through current DocumentSearch.search_hybrid. Exploratory, not independent validation.',
                                       settings=settings), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     for setting in settings:
@@ -41,4 +41,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit('이전 검색 방식의 비교 도구입니다. 저장된 JSON 또는 해당 Git 커밋을 참고하세요. 현재 재정렬 검증은 tests/compare_similarity_search.py를 실행하세요.')

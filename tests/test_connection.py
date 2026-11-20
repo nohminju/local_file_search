@@ -31,6 +31,8 @@ class ModelOutput:
 
 
 
+
+
 class ConnectionTests(unittest.TestCase):
     def setUp(self):
         self.directory = TemporaryDirectory()
@@ -215,115 +217,17 @@ class ConnectionTests(unittest.TestCase):
     def mock_hit(self, number, path, file_hash=None):
         return SimpleNamespace(file_id=number, file_path=path, file_hash=file_hash)
 
-    def test_raw_similarity_is_preserved_with_model_provenance(self):
-        photo = self.mock_hit(1, '/cat.jpg')
-        self.service.search = Mock(side_effect=[[], [(photo, 0.260748)]])
-        result = self.service.search_hybrid('  누워있는 고양이  ')[0]
-        self.assertEqual(tuple(result), (photo, 0.260748))
-        self.assertEqual(result.source, 'images')
-        self.assertIsNone(result.document_score)
-        self.assertEqual(result.image_score, 0.260748)
-        self.assertAlmostEqual(result.sort_score, (0.260748 - 0.2) / 0.8)
-        self.assertTrue(all(call.args == ('누워있는 고양이',)
-                            for call in self.service.search.call_args_list))
 
-    def test_low_document_first_place_is_filtered_before_fusion(self):
-        document = self.mock_hit(1, '/db.pdf')
-        photo = self.mock_hit(2, '/cat.jpg')
-        self.service.search = Mock(side_effect=[[(document, 0.12963)], [(photo, 0.260748)]])
-        results = self.service.search_hybrid('query')
-        self.assertEqual([r.file.file_id for r in results], [2])
-        self.assertEqual(results[0].score, 0.260748)
 
-    def test_model_specific_floors_control_order_instead_of_raw_max(self):
-        document = self.mock_hit(1, '/db.pdf')
-        photo = self.mock_hit(2, '/cat.jpg')
-        self.service.search = Mock(side_effect=[[(document, 0.43)], [(photo, 0.28)]])
-        results = self.service.search_hybrid('query')
-        self.assertEqual([r.file.file_id for r in results], [2, 1])
-        self.assertEqual([r.score for r in results], [0.28, 0.43])
-        self.assertGreater(results[0].sort_score, results[1].sort_score)
 
-    def test_second_search_does_not_raise_score_unless_it_is_stronger(self):
-        shared = self.mock_hit(1, '/shared.pdf')
-        self.service.search = Mock(side_effect=[[(shared, 0.7)], [],
-                                               [(shared, 0.7)], [(shared, 0.3)],
-                                               [(shared, 0.7)], [(shared, 0.8)]])
-        single = self.service.search_hybrid('query')[0]
-        both = self.service.search_hybrid('query')[0]
-        stronger_image = self.service.search_hybrid('query')[0]
-        self.assertAlmostEqual(single.sort_score, 0.5)
-        self.assertEqual(single.sort_score, both.sort_score)
-        self.assertEqual((both.document_score, both.image_score), (0.7, 0.3))
-        self.assertAlmostEqual(stronger_image.sort_score, 0.75)
-        self.assertEqual(stronger_image.source, 'images')
 
-    def test_winning_modality_keeps_both_original_scores(self):
-        shared = self.mock_hit(1, '/shared.pdf')
-        self.service.search = Mock(side_effect=[[(shared, 0.43)], [(shared, 0.28)]])
-        result = self.service.search_hybrid('query')[0]
-        self.assertEqual((result.score, result.source), (0.28, 'images'))
-        self.assertEqual((result.document_score, result.image_score), (0.43, 0.28))
 
-    def test_cat_photo_beats_weak_pdf_appearing_in_both_searches(self):
-        # 기존 RRF에서는 PDF의 본문 1위+이미지 2위가 사진의 이미지 1위를 앞서는 입력.
-        cat = self.mock_hit(1, '/고양이.jpg')
-        pdf = self.mock_hit(2, '/딥러닝기초.pdf')
-        self.service.search = Mock(side_effect=[[(pdf, 0.41)],
-                                               [(cat, 0.260748), (pdf, 0.21)]])
-        results = self.service.search_hybrid('고양이')
-        self.assertEqual([r.file.file_id for r in results], [1, 2])
-        self.assertAlmostEqual(results[0].sort_score, (0.260748 - 0.2) / 0.8)
-        self.assertAlmostEqual(results[1].sort_score, (0.41 - 0.4) / 0.6)
-        self.assertEqual((results[0].score, results[0].source), (0.260748, 'images'))
 
-    def test_accurate_text_only_document_beats_weaker_dual_search_result(self):
-        exact = self.mock_hit(1, '/정확한본문.pdf')
-        weak = self.mock_hit(2, '/무관한자료.pdf')
-        self.service.search = Mock(side_effect=[[(exact, 0.88), (weak, 0.55)],
-                                               [(weak, 0.3)]])
-        results = self.service.search_hybrid('관계형 데이터베이스 기본키')
-        self.assertEqual([r.file.file_id for r in results], [1, 2])
-        self.assertAlmostEqual(results[0].sort_score, 0.8)
-        self.assertAlmostEqual(results[1].sort_score, 0.25)
-        self.assertEqual((results[0].score, results[0].source), (0.88, 'documents'))
-        self.assertIsNone(results[0].image_score)
 
-    def test_below_floor_score_cannot_win_despite_higher_raw_similarity(self):
-        shared = self.mock_hit(1, '/shared.pdf')
-        self.service.search = Mock(side_effect=[[(shared, 0.39)], [(shared, 0.3)]])
-        result = self.service.search_hybrid('query')[0]
-        self.assertAlmostEqual(result.sort_score, 0.125)
-        self.assertEqual(result.source, 'images')
-        self.assertEqual(result.document_score, 0.39)
 
-    def test_equal_best_scores_use_path_order_without_dual_search_bonus(self):
-        single = self.mock_hit(1, '/a.pdf')
-        dual = self.mock_hit(2, '/b.pdf')
-        self.service.search = Mock(side_effect=[[(single, 0.7), (dual, 0.7)], [(dual, 0.3)]])
-        results = self.service.search_hybrid('query')
-        self.assertEqual([r.file.file_id for r in results], [1, 2])
-        self.assertEqual(results[0].sort_score, results[1].sort_score)
 
-    def test_same_content_keeps_highest_match_and_fills_limit(self):
-        first = self.mock_hit(1, '/a.pdf', 'same')
-        duplicate = self.mock_hit(2, '/b.pdf', 'same')
-        photo = self.mock_hit(3, '/c.jpg', 'other')
-        self.service.file_ids = {str(i): i for i in range(8)}
-        self.service.search = Mock(side_effect=[[(first, 0.9), (duplicate, 0.8)], [(photo, 0.4)]])
-        results = self.service.search_hybrid('query', top_k=2)
-        self.assertEqual([r.file.file_id for r in results], [1, 3])
-        self.assertEqual(self.service.search.call_args_list[0].kwargs['top_k'], 8)
 
-    def test_missing_hash_does_not_merge_unrelated_files(self):
-        a, b = self.mock_hit(1, '/a.jpg'), self.mock_hit(2, '/b.jpg')
-        self.service.search = Mock(side_effect=[[], [(a, 0.5), (b, 0.4)]])
-        self.assertEqual(len(self.service.search_hybrid('query')), 2)
 
-    def test_no_padding_with_low_or_nonfinite_matches(self):
-        items = [(self.mock_hit(i, f'/{i}.jpg'), s) for i, s in enumerate([0.19, -0.1, float('nan'), float('inf')])]
-        self.service.search = Mock(side_effect=[[], items])
-        self.assertEqual(self.service.search_hybrid('query'), [])
 
     def test_default_search_connects_real_loader_database_and_both_indices(self):
         self.make_documents()
@@ -354,13 +258,6 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(self.service.search_hybrid('   '), [])
         self.assertEqual(self.service.search_hybrid('query', top_k=0), [])
 
-    def test_invalid_and_custom_threshold_configuration(self):
-        for threshold in [float('nan'), float('inf'), 1.0, -1.1]:
-            with self.subTest(threshold=threshold), self.assertRaises(ValueError):
-                DocumentSearch(*([None] * 7), document_min_score=threshold)
-        service = DocumentSearch(*([None] * 7), document_min_score=0.6, image_min_score=0.3)
-        service.search = Mock(side_effect=[[(self.mock_hit(1, '/a.pdf'), 0.5)], [(self.mock_hit(2, '/b.jpg'), 0.29)]])
-        self.assertEqual(service.search_hybrid('query'), [])
 
     def test_repeated_text_encoded_once_with_both_file_metadata_preserved(self):
         presentation = Presentation()
@@ -384,7 +281,7 @@ class ConnectionTests(unittest.TestCase):
         self.assertIsNone(self.vector_index.indices['img'])
 
 
-    def test_filename_evidence_preserves_source_in_raw_and_hybrid_results(self):
+    def test_filename_does_not_create_a_body_vector_or_change_raw_similarity(self):
         from connection.text_preparation import DocumentTextPreparer
         tokenizer = Mock()
         tokenizer.num_special_tokens_to_add.return_value = 2
@@ -397,13 +294,11 @@ class ConnectionTests(unittest.TestCase):
         presentation.save(self.folder / 'apple_persona.pptx')
         self.service.analyze(self.folder)
         raw = self.service.search('apple', mode='documents')[0]
-        self.assertEqual(raw.source, 'filenames')
-        info, score = raw
-        self.assertEqual(info.file_name, 'apple_persona.pptx')
-        self.assertEqual(score, 1.)
-        hybrid = self.service.search('apple')[0]
-        self.assertEqual(hybrid.source, 'filenames')
-        self.assertEqual(hybrid.document_score, 1.)
+        self.assertEqual(raw.source, 'documents')
+        self.assertEqual(raw[1], 0.)
+        self.assertEqual(self.vector_index.indices['doc'].ntotal, 1)
+        self.assertEqual([m['text'] for m in self.vector_index.chunk_metas['doc']], ['banana'])
+        self.assertTrue(all(m['chunk_type'] != 'filename' for m in self.vector_index.chunk_metas['doc']))
 
     def test_image_filename_does_not_create_a_fake_body_match(self):
         from connection.text_preparation import DocumentTextPreparer

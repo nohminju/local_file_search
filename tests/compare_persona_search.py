@@ -25,7 +25,7 @@ def name(text):
 
 def main():
     torch.set_num_threads(4)
-    baseline=json.loads((ROOT/'docs/TEXT_MODEL_COMPARISON_2026-11-20.json').read_text(encoding='utf-8'))
+    baseline=json.loads((ROOT/'docs/records/2026-11-20/TEXT_MODEL_COMPARISON_2026-11-20.json').read_text(encoding='utf-8'))
     before=baseline['results']['candidate_sentence']
     service=build_service()
     try:
@@ -62,10 +62,10 @@ def main():
                     overlap=service.text_preparer.overlap,
                     persona_indexed_texts=[m for m in metas if m['file_path']==persona.file_path],
                     before=before,after=after)
-        (ROOT/'docs/PERSONA_SEARCH_COMPARISON_2026-11-20.json').write_text(json.dumps(output,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+        (ROOT/'docs/records/2026-11-20/PERSONA_SEARCH_COMPARISON_2026-11-20.json').write_text(json.dumps(output,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
         print('SAVED PERSONA_SEARCH_COMPARISON_2026-11-20.json',flush=True)
     finally:
         service.session_directory.cleanup()
 
-if __name__=='__main__':
-    main()
+if __name__ == '__main__':
+    raise SystemExit('이전 검색 방식의 비교 도구입니다. 저장된 JSON 또는 해당 Git 커밋을 참고하세요. 현재 재정렬 검증은 tests/compare_similarity_search.py를 실행하세요.')

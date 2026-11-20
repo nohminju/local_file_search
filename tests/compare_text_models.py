@@ -96,11 +96,11 @@ def main():
                       candidate_load_and_text_seconds=seconds,
                       method='Same files, same image index, same floors and max-margin ranking. Only text model/index differs.',
                       results=candidates)
-        output = ROOT / 'docs/TEXT_MODEL_COMPARISON_2026-11-20.json'
+        output = ROOT / 'docs/records/2026-11-20/TEXT_MODEL_COMPARISON_2026-11-20.json'
         output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
         print(f'SAVED {output}', flush=True)
     finally:
         service.session_directory.cleanup()
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit('이전 검색 방식의 비교 도구입니다. 저장된 JSON 또는 해당 Git 커밋을 참고하세요. 현재 재정렬 검증은 tests/compare_similarity_search.py를 실행하세요.')

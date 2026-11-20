@@ -34,15 +34,14 @@ def normalized(text):
 def main():
     parser = argparse.ArgumentParser(description='캐시된 실제 모델로 샘플 검색 순위를 기록합니다.')
     parser.add_argument('--folder', type=Path, default=ROOT / 'test_esset')
-    parser.add_argument('--output', type=Path, default=ROOT / 'docs/REAL_SAMPLE_SENTENCE_RESULTS_2026-11-20.json')
-    parser.add_argument('--document-backend', choices=['sentence', 'openclip'], default='sentence')
+    parser.add_argument('--output', type=Path, default=ROOT / 'docs/records/2026-11-20/REAL_SAMPLE_SIMILARITY_RESULTS_2026-11-20.json')
     parser.add_argument('--threads', type=int, default=4)
     args = parser.parse_args()
     if args.threads < 1 or not args.folder.is_dir():
         parser.error('존재하는 샘플 폴더와 양수 threads가 필요합니다.')
     torch.set_num_threads(args.threads)
     started = time.perf_counter()
-    service = build_service(document_backend=args.document_backend)
+    service = build_service()
     model_seconds = time.perf_counter() - started
     original_loader = service.loader.process_file
     extracted = []
@@ -63,10 +62,10 @@ def main():
         analysis_seconds = time.perf_counter() - started
         report = {'python': platform.python_version(), 'torch': torch.__version__,
                   'image_model': 'xlm-roberta-base-ViT-B-32',
-                  'document_model': 'jhgan/ko-sroberta-multitask' if args.document_backend == 'sentence' else 'xlm-roberta-base-ViT-B-32', 'pretrained': 'laion5b_s13b_b90k',
+                  'document_model': 'jhgan/ko-sroberta-multitask', 'pretrained': 'laion5b_s13b_b90k',
                   'device': str(service.image_encoder.device), 'threads': args.threads,
-                  'document_min_score': service.document_min_score, 'image_min_score': service.image_min_score,
-                  'ranking': 'max((raw - model_floor) / (1 - model_floor)); no sum',
+                  'thresholds': None, 'filename_search': False,
+                  'ranking': 'image files: image cosine only; PDF/PPTX: max(body cosine, image cosine); descending raw score; no sum',
                   'model_load_seconds': model_seconds, 'analysis_seconds': analysis_seconds,
                   'analyzed': len(documents), 'failures': [(p.name, error) for p, error in failures],
                   'chunk_counts': {k: len(v) for k, v in service.vector_index.chunk_metas.items()},
@@ -81,7 +80,7 @@ def main():
             raw_docs = service.search(query, top_k=len(documents), mode='documents')
             raw_images = service.search(query, top_k=len(documents), mode='images')
             hybrid = service.search(query, top_k=len(documents))
-            results = [dict(file_row(r.file, r.score), source=r.source, sort_score=r.sort_score,
+            results = [dict(file_row(r.file, r.score), source=r.source,
                             document_score=r.document_score, image_score=r.image_score) for r in hybrid]
             expected_hashes = {info.file_hash for info in documents
                                if any(part in normalized(info.file_name) for part in expected)}
@@ -103,7 +102,7 @@ def main():
             query = chunk.text.strip()
             rows = service.search(query, top_k=5)
             expected_hash = next(d.file_hash for d in documents if d.file_path == chunk.file_path)
-            result_rows = [dict(file_row(r.file, r.score), source=r.source, sort_score=r.sort_score,
+            result_rows = [dict(file_row(r.file, r.score), source=r.source,
                                 document_score=r.document_score, image_score=r.image_score) for r in rows]
             rank = next((i for i, r in enumerate(result_rows, 1) if r['sha256'] == expected_hash), None)
             report['queries'].append({'query': query, 'kind': 'exact_extracted_chunk_diagnostic',

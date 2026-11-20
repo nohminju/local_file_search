@@ -81,7 +81,7 @@ class GuiConnectionTests(unittest.TestCase):
         app.results_frame = Mock()
         app.clear_results = Mock()
         info = SimpleNamespace(file_name='cat.jpg', file_path='/cat.jpg')
-        result = SearchResult(info, 0.260748, 'images', 0.075935, None, 0.260748)
+        result = SearchResult(info, 0.260748, 'images', None, 0.260748)
         with patch('gui.window.ctk.CTkFrame'), patch('gui.window.ctk.CTkLabel') as label, \
              patch('gui.window.ctk.CTkButton'), patch('gui.window.ctk.CTkFont'):
             DocumentSearchApp.show_results(app, [result])
@@ -105,16 +105,18 @@ class GuiConnectionTests(unittest.TestCase):
                 app.service.search.assert_called_once_with('검색 문장', mode=mode)
                 self.assertIn('하한 미적용', app.status.configure.call_args.kwargs['text'])
 
-    def test_filename_source_card_is_not_mislabeled_as_body(self):
+    def test_filename_is_displayed_but_score_source_is_body(self):
         app = self.make_app()
         app.results_frame = Mock()
         app.clear_results = Mock()
         info = SimpleNamespace(file_name='persona.pptx', file_path='/persona.pptx')
         with patch('gui.window.ctk.CTkFrame'), patch('gui.window.ctk.CTkLabel') as label, \
              patch('gui.window.ctk.CTkButton'), patch('gui.window.ctk.CTkFont'):
-            DocumentSearchApp.show_results(app, [ScoredFile(info, 0.9, 'filenames')])
+            DocumentSearchApp.show_results(app, [ScoredFile(info, 0.9, 'documents')])
         texts = [call.kwargs.get('text', '') for call in label.call_args_list]
-        self.assertTrue(any('파일명 유사도 0.9000' in text for text in texts))
+        self.assertIn('persona.pptx', texts)
+        self.assertTrue(any('본문 유사도 0.9000' in text for text in texts))
+        self.assertFalse(any('파일명 유사도' in text or '재정렬' in text for text in texts))
 
     def test_busy_state_disables_mode_switch(self):
         app = self.make_app()

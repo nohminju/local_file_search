@@ -20,7 +20,7 @@ class TextPreparationTests(unittest.TestCase):
     def test_long_page_tail_is_indexed_with_overlap_and_page_preserved(self):
         text = ' '.join(f'word{i}' for i in range(19))
         chunk = DocumentChunk('a.pdf', '/a.pdf', 3, text, 'pdf')
-        pieces = DocumentTextPreparer(WordTokenizer(), 10, overlap=2).prepare([chunk], [])
+        pieces = DocumentTextPreparer(WordTokenizer(), 10, overlap=2).prepare([chunk])
         self.assertEqual([len(c.text.split()) for c in pieces], [8, 8, 7])
         self.assertEqual(pieces[0].text.split()[-2:], pieces[1].text.split()[:2])
         self.assertIn('word18', pieces[-1].text)
@@ -30,14 +30,14 @@ class TextPreparationTests(unittest.TestCase):
 
     def test_short_chunk_is_not_rewritten(self):
         chunk = DocumentChunk('a.pdf', '/a.pdf', 1, ' original text ', 'pdf')
-        self.assertIs(DocumentTextPreparer(WordTokenizer(), 10, overlap=2).prepare([chunk], [])[0], chunk)
+        self.assertIs(DocumentTextPreparer(WordTokenizer(), 10, overlap=2).prepare([chunk])[0], chunk)
 
-    def test_only_pdf_pptx_names_are_indexed_and_normalized(self):
-        docs = [SimpleNamespace(file_path='/x/%E1%84%80%E1%85%A1_%ED%8E%98%EB%A5%B4%EC%86%8C%EB%82%98.pptx'),
-                SimpleNamespace(file_path='/x/database.pdf'), SimpleNamespace(file_path='/x/cat.jpg')]
-        chunks = DocumentTextPreparer(WordTokenizer(), 10, overlap=2).prepare([], docs)
-        self.assertEqual([c.text for c in chunks], ['가 페르소나', 'database'])
-        self.assertTrue(all(c.chunk_type == 'filename' and c.page_number == 0 for c in chunks))
+    def test_filename_and_path_never_enter_prepared_text(self):
+        chunk = DocumentChunk('apple_persona.pptx', '/private/secret/apple_persona.pptx', 1, 'banana', 'pptx')
+        chunks = DocumentTextPreparer(WordTokenizer(), 10, overlap=2).prepare([chunk])
+        self.assertEqual([c.text for c in chunks], ['banana'])
+        self.assertEqual(DocumentTextPreparer(WordTokenizer(), 10, overlap=2).prepare([]), [])
+        self.assertNotIn('apple', chunks[0].text)
 
     def test_invalid_window_or_overlap_is_rejected(self):
         for size, overlap in [(2, 0), (10, 8), (10, -1)]:

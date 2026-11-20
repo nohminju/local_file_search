@@ -26,52 +26,26 @@ class SharedTextEncoderTests(unittest.TestCase):
         load.assert_not_called()
         model.eval.assert_called_once()
 
-    def test_factory_passes_image_model_and_tokenizer_to_query_encoder(self):
+    def test_factory_shares_image_model_and_keeps_body_model_separate(self):
         with patch('app.ImageEncoder') as image_class, \
              patch('app.KoreanTextEncoder') as text_class, \
              patch('app.open_clip.get_tokenizer') as tokenizer, \
-             patch('app.OpenCLIPDocumentEmbedder') as document_class, patch('app.Repository'), patch('app.FaissManager') as index_class:
-            service = build_service(document_backend='openclip')
-            try:
-                text_class.assert_called_once_with(
-                    model=image_class.return_value.model,
-                    tokenizer=tokenizer.return_value,
-                )
-                self.assertIs(service.document_encoder.image_encoder, service.image_encoder)
-                self.assertIs(service.query_encoder, text_class.return_value)
-                image_class.assert_called_once()
-                self.assertIs(service.vector_index, index_class.return_value)
-                document_class.assert_called_once_with(
-                    model=image_class.return_value.model,
-                    tokenizer=text_class.return_value.tokenizer,
-                )
-                index_class.assert_called_once_with(doc_dim=512, img_dim=512)
-            finally:
-                service.session_directory.cleanup()
-
-
-    def test_default_factory_uses_separate_sentence_model_and_matching_dimensions(self):
-        with patch('app.ImageEncoder') as image_class, \
-             patch('app.KoreanTextEncoder'), patch('app.open_clip.get_tokenizer'), \
-             patch('app.DocumentEmbedder') as sentence_class, \
+             patch('app.SentenceDocumentEmbedder') as sentence_class, \
              patch('app.DocumentTextPreparer') as prepare_class, \
-             patch('app.OpenCLIPDocumentEmbedder') as clip_class, \
              patch('app.Repository'), patch('app.FaissManager') as index_class:
             service = build_service()
             try:
+                text_class.assert_called_once_with(model=image_class.return_value.model,
+                                                   tokenizer=tokenizer.return_value)
                 sentence_class.assert_called_once_with()
-                clip_class.assert_not_called()
                 self.assertIs(service.document_embedder, sentence_class.return_value)
                 self.assertIsNot(service.document_embedder.model, image_class.return_value.model)
+                self.assertIs(service.document_encoder.image_encoder, service.image_encoder)
+                self.assertIs(service.query_encoder, text_class.return_value)
+                image_class.assert_called_once()
                 index_class.assert_called_once_with(doc_dim=768, img_dim=512)
                 prepare_class.assert_called_once_with(sentence_class.return_value.model.tokenizer,
                                                        sentence_class.return_value.model.max_seq_length)
                 self.assertIs(service.text_preparer, prepare_class.return_value)
             finally:
                 service.session_directory.cleanup()
-
-    def test_invalid_text_backend_is_rejected_before_loading_models(self):
-        with patch('app.ImageEncoder') as load:
-            with self.assertRaises(ValueError):
-                build_service(document_backend='unknown')
-            load.assert_not_called()

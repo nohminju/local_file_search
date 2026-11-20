@@ -1,10 +1,5 @@
-"""모델 길이에 맞춰 본문을 나누고 문서 파일명을 별도 검색 근거로 만든다."""
+"""모델 길이에 맞춰 추출 본문만 나눈다. 파일명은 검색 입력으로 사용하지 않는다."""
 from dataclasses import replace
-from pathlib import Path
-import unicodedata
-from urllib.parse import unquote
-
-from file_loader.document_loader import DocumentChunk
 
 
 class DocumentTextPreparer:
@@ -15,7 +10,7 @@ class DocumentTextPreparer:
             raise ValueError('본문 토큰 길이와 겹침 범위를 확인하세요.')
         self.overlap = overlap
 
-    def prepare(self, chunks, documents):
+    def prepare(self, chunks):
         prepared = []
         for chunk in chunks:
             # 길이 제한을 직접 관리하므로 여기서는 tokenizer의 자동 잘림을 끈다.
@@ -28,13 +23,4 @@ class DocumentTextPreparer:
                 prepared.append(replace(chunk, text=text))
                 if start + self.limit >= len(ids):
                     break
-        for info in documents:
-            path = Path(info.file_path)
-            # 이미지 파일명으로 사진 내용 점수를 덮어쓰지 않는다.
-            if path.suffix.lower() not in {'.pdf', '.pptx'}:
-                continue
-            filename = unicodedata.normalize('NFC', unquote(path.name))
-            title = Path(filename).stem.replace('_', ' ').replace('+', ' ').strip()
-            if title:
-                prepared.append(DocumentChunk(filename, info.file_path, 0, title, 'filename'))
         return prepared

@@ -10,7 +10,7 @@ from file_loader.document_loader import DocumentScanner
 
 
 class ScoredFile(tuple):
-    """기존 (파일, 점수) 규격을 유지하며 본문/파일명/이미지 출처를 보존한다."""
+    """기존 (파일, 점수) 규격을 유지하며 본문/이미지 출처를 보존한다."""
     def __new__(cls, file, score, source):
         result = super().__new__(cls, (file, score))
         result.source = source
@@ -19,11 +19,10 @@ class ScoredFile(tuple):
 
 @dataclass(frozen=True)
 class SearchResult:
-    """score는 선택 모델의 원본 유사도, sort_score는 기준 초과 비율이다."""
+    """score는 선택 근거의 원본 코사인 유사도다."""
     file: DocumentInfo
     score: float
     source: str
-    sort_score: float
     document_score: float | None
     image_score: float | None
 
@@ -35,13 +34,8 @@ class SearchResult:
 class DocumentSearch:
     def __init__(self, loader, image_encoder, document_encoder,
                  document_embedder, query_encoder, repository, vector_index,
-                 *, document_min_score=0.4, image_min_score=0.2, text_preparer=None):
-        if any(not isfinite(value) or not -1 <= value < 1
-               for value in (document_min_score, image_min_score)):
-            raise ValueError("유사도 기준은 -1 이상 1 미만의 유한한 값이어야 합니다.")
+                 *, text_preparer=None):
         self.text_preparer = text_preparer
-        self.document_min_score = document_min_score
-        self.image_min_score = image_min_score
         self.loader = loader
         self.image_encoder = image_encoder
         self.document_encoder = document_encoder
@@ -84,7 +78,7 @@ class DocumentSearch:
                 continue
 
             # 문서 이미지도 chunk_type이 image이므로 원본 확장자로 인코더를 고른다.
-            encoder = (self.document_encoder if path.suffix.lower() in {'.pdf', '.pptx'}
+            encoder = (self.document_encoder if path.suffix.lower() in DocumentScanner.DOCUMENT_EXTENSIONS
                        else self.image_encoder)
             # 모델 오류는 읽기 실패로 숨기지 않고 호출자에게 전달한다.
             file_images = [chunk for chunk in chunks if chunk.image is not None]
@@ -98,7 +92,7 @@ class DocumentSearch:
             documents.append(info)
 
         if self.text_preparer is not None:
-            text_chunks = self.text_preparer.prepare(text_chunks, documents)
+            text_chunks = self.text_preparer.prepare(text_chunks)
 
         if text_chunks:
             # 같은 본문은 한 번만 인코딩하되 각 파일·페이지의 메타데이터는 유지한다.
@@ -119,7 +113,7 @@ class DocumentSearch:
         return documents, failures
 
     def search(self, query, top_k=5, mode='hybrid'):
-        """기본 검색은 모델별 기준을 통과한 원본 유사도를 보존해 통합한다."""
+        """통합검색은 파일 종류별 원본 유사도의 최댓값으로 정렬한다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
@@ -146,6 +140,8 @@ class DocumentSearch:
         seen = set()
         # FAISS가 점수순으로 반환하므로 같은 파일의 첫 결과가 최고 점수다.
         for hit in hits:
+            if mode == 'documents' and hit['chunk'].get('chunk_type') == 'filename':
+                continue  # 이전 인덱스의 파일명 청크도 검색에 사용하지 않는다.
             file_id = self.file_ids[hit['chunk']['file_path']]
             if file_id in seen:
                 continue
@@ -153,54 +149,46 @@ class DocumentSearch:
             info = self.repository.find_by_id(file_id)
             if info is None:
                 raise LookupError(f"DB에 파일 번호 {file_id}가 없습니다.")
-            source = 'filenames' if hit['chunk'].get('chunk_type') == 'filename' else mode
-            results.append(ScoredFile(info, hit['score'], source))
+            source = mode
+            result = ScoredFile(info, hit['score'], source)
+            results.append(result)
             if len(results) >= top_k:
                 break
         return results
 
     def search_hybrid(self, query, top_k=5):
-        """모델별 하한 필터 후 기준 초과 비율의 최댓값으로 정렬한다. 합산하지 않는다."""
+        """이미지는 이미지 점수만, PDF/PPTX는 본문·이미지 중 높은 원본 점수를 쓴다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
-
-        # 필터·내용 중복 제거 후에도 결과를 채울 수 있도록 등록 파일 전체를 후보로 받는다.
-        count = max(len(self.file_ids), top_k * 2)
-        doc_results = self.search(query, top_k=count, mode='documents')
-        img_results = self.search(query, top_k=count, mode='images')
+        # 최종 결과 수를 제한하기 전에 등록 파일 전체에서 최고 점수를 찾는다.
+        count = max(len(self.file_ids), top_k)
+        doc_hits = self.search(query, top_k=count, mode='documents')
+        image_hits = self.search(query, top_k=count, mode='images')
         records = {}
-        for mode, results in (('documents', doc_results), ('images', img_results)):
-            for hit in results:
-                info, score = hit
-                score = float(score)
-                if not isfinite(score):
+        image_extensions = DocumentScanner.IMAGE_EXTENSIONS
+        document_extensions = DocumentScanner.DOCUMENT_EXTENSIONS
+        for mode, hits in (('documents', doc_hits), ('images', image_hits)):
+            for info, raw in hits:
+                extension = Path(info.file_path).suffix.lower()
+                if extension not in image_extensions | document_extensions:
                     continue
+                if mode == 'documents' and extension not in document_extensions:
+                    continue  # 이미지 파일에는 본문 점수를 섞지 않는다.
+                raw = float(raw)
+                if not isfinite(raw):
+                    continue  # 유효성 검사. 음수를 포함한 유한한 점수에는 하한을 두지 않는다.
                 record = records.setdefault(info.file_id, dict(file=info, documents=None, images=None))
-                record[mode] = score
-                if mode == 'documents':
-                    record['document_source'] = getattr(hit, 'source', 'documents')
-
+                previous = record[mode]
+                if previous is None or raw > previous:
+                    record[mode] = raw
         matches = []
         for record in records.values():
-            eligible = []
-            for mode, floor in (('documents', self.document_min_score),
-                                ('images', self.image_min_score)):
-                raw = record[mode]
-                if raw is not None and raw >= floor:
-                    # 서로 다른 하한을 0, 코사인 유사도 1을 1로 맞춘 운영상 정렬값.
-                    # 확률 보정이 아니며 두 검색에 등장해도 점수를 더하지 않는다.
-                    eligible.append(((min(raw, 1.0) - floor) / (1.0 - floor), mode, raw))
-            if not eligible:
-                continue
-            # 같은 정렬값이면 본문을 표시한다. 파일 간 동점은 아래에서 경로로 정한다.
-            sort_score, source, raw = max(eligible, key=lambda item: item[0])
-            display_source = record.get('document_source', source) if source == 'documents' else source
-            matches.append(SearchResult(record['file'], raw, display_source, sort_score,
+            available = [(record[mode], mode) for mode in ('documents', 'images') if record[mode] is not None]
+            score, source = max(available, key=lambda item: item[0])
+            matches.append(SearchResult(record['file'], score, source,
                                         record['documents'], record['images']))
-
-        matches.sort(key=lambda result: (-result.sort_score,
-                                         result.file.file_path.casefold(), result.file.file_path))
+        matches.sort(key=lambda r: (-r.score, r.file.file_path.casefold(), r.file.file_path))
         results, seen = [], set()
         for match in matches:
             file_hash = getattr(match.file, 'file_hash', None)

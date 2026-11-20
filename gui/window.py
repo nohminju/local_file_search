@@ -104,9 +104,9 @@ class DocumentSearchApp(ctk.CTk):
     def on_mode_change(self, label):
         self.clear_results()
         if label == '통합검색':
-            text = '통합검색: 기준 통과 결과를 정렬합니다.'
+            text = '통합검색: 이미지 점수 또는 문서의 본문·이미지 중 높은 원본 점수순'
         elif label == '본문 검색':
-            text = '본문 검색: 파일명 포함, 원본 점수순 상위 5개 (하한 미적용)'
+            text = '본문 검색: 추출한 글의 원본 점수순 상위 5개 (파일명 제외·하한 미적용)'
         else:
             text = '이미지 검색: 원본 점수순 상위 5개 (하한 미적용)'
         self.status.configure(text=text)
@@ -185,7 +185,7 @@ class DocumentSearchApp(ctk.CTk):
                 else:
                     self.show_results(result)
                     label = next(label for label, mode in SEARCH_MODES.items() if mode == self.active_search_mode)
-                    rule = '기준 필터 적용' if self.active_search_mode == 'hybrid' else '원본 점수순·하한 미적용'
+                    rule = '파일별 최고 원본 점수·하한 미적용' if self.active_search_mode == 'hybrid' else '원본 점수순·하한 미적용'
                     self.status.configure(text=f"{label}: {len(result)}개 ({rule}, 유사도는 확률이 아닙니다)")
         except queue.Empty:
             pass
@@ -198,7 +198,7 @@ class DocumentSearchApp(ctk.CTk):
             return
         for index, result in enumerate(results):
             info, score = result
-            source = {"documents": "본문", "images": "이미지", "filenames": "파일명"}[result.source]
+            source = {"documents": "본문", "images": "이미지"}[result.source]
             path = str(info.file_path)
             card = ctk.CTkFrame(self.results_frame, corner_radius=8)
             card.grid(row=index, column=0, sticky="ew", padx=5, pady=5)
