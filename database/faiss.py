@@ -44,7 +44,8 @@ class FaissManager:
                 "file_name": getattr(c, 'file_name', ''),
                 "file_path": getattr(c, 'file_path', ''),
                 "page_number": getattr(c, 'page_number', 1),
-                "text": getattr(c, 'text', '')
+                "text": getattr(c, 'text', ''),
+                "chunk_type": getattr(c, 'chunk_type', 'document')
             })
 
     def add_images(self, vectors, chunks):
