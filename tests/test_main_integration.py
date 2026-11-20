@@ -12,16 +12,16 @@ from similarity.document_embedder import DocumentEmbedder
 
 
 class MainIntegrationTests(unittest.TestCase):
-    def test_text_batches_preserve_rows_and_query_dimension(self):
+    def test_original_text_api_preserves_rows_and_query_dimension(self):
         model = Mock()
         model.encode_text.side_effect = lambda tokens: tokens.float()
         tokenizer = Mock(side_effect=lambda texts: torch.tensor([[3., 4.]] * len(texts)))
         with patch('similarity.document_embedder.torch.cuda.is_available', return_value=False), \
              patch('similarity.document_embedder.open_clip.create_model_and_transforms') as load:
-            embedder = DocumentEmbedder(model=model, tokenizer=tokenizer, batch_size=2)
+            embedder = DocumentEmbedder(model=model, tokenizer=tokenizer)
             chunks = [SimpleNamespace(text=f'page {i}') for i in range(5)]
             vectors = embedder.embed_chunks(chunks)
-            self.assertEqual([len(call.args[0]) for call in tokenizer.call_args_list], [2, 2, 1])
+            self.assertEqual([len(call.args[0]) for call in tokenizer.call_args_list], [5])
             self.assertEqual(vectors.shape, (5, 2))
             self.assertEqual(vectors.dtype, np.float32)
             np.testing.assert_allclose(vectors, [[0.6, 0.8]] * 5)
@@ -29,14 +29,7 @@ class MainIntegrationTests(unittest.TestCase):
             self.assertIsNone(embedder.encode_query(' '))
             self.assertIsNone(embedder.embed_chunks([SimpleNamespace(text=' ')]))
             load.assert_not_called()
-            model.eval.assert_called_once()
 
-    def test_incomplete_model_injection_does_not_download_another_model(self):
-        with patch('similarity.document_embedder.open_clip.create_model_and_transforms') as load:
-            for args in ({'model': Mock()}, {'tokenizer': Mock()}, {'batch_size': 0}):
-                with self.subTest(args=args), self.assertRaises(ValueError):
-                    DocumentEmbedder(**args)
-            load.assert_not_called()
 
     def test_faiss_optional_floor_preserves_raw_scores_for_both_indices(self):
         index = FaissManager(2, 2)

@@ -6,7 +6,7 @@ import open_clip
 from file_loader.document_loader import DocumentLoader
 from file_encoder.image_encoder import ImageEncoder
 from file_encoder.document_encoder import DocumentEncoder
-from similarity.sentence_document_embedder import SentenceDocumentEmbedder
+from connection.sentence_document_embedder import SentenceDocumentEmbedder
 from query_encoder.text_encoder import KoreanTextEncoder
 from database.manager import Repository
 from database.faiss import FaissManager

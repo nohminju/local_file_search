@@ -15,7 +15,7 @@ import numpy as np
 import torch
 from app import build_service
 from database.faiss import FaissManager
-from similarity.sentence_document_embedder import SentenceDocumentEmbedder
+from connection.sentence_document_embedder import SentenceDocumentEmbedder
 
 # 첫 6개는 이전 평가와 같은 질의다. 추가 질의도 모델 출력을 보기 전에 고정했다.
 # 앞 3개 사진의 무관 문서는 주제명으로 확인한다. 본문은 제목/본문 주제로 정한 기대 대상이다.

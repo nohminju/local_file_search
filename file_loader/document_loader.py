@@ -20,9 +20,7 @@ class DocumentChunk:
 
 class DocumentScanner:
     # 지원하는 파일 확장자 목록 (이외의 HWP, TXT 등은 탐색에서 자동 제외)
-    IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
-    DOCUMENT_EXTENSIONS = {'.pdf', '.pptx'}
-    SUPPORTED_EXTENSIONS = IMAGE_EXTENSIONS | DOCUMENT_EXTENSIONS
+    SUPPORTED_EXTENSIONS = {'.pdf', '.pptx', '.jpg', '.jpeg', '.png', '.webp'}
 
     def __init__(self, root_dir: str):
         self.root_dir = root_dir
@@ -185,7 +183,7 @@ class DocumentLoader:
             return self.load_pdf(file_path)
         elif ext == '.pptx':
             return self.load_pptx(file_path)
-        elif ext in DocumentScanner.IMAGE_EXTENSIONS:
+        elif ext in {'.jpg', '.jpeg', '.png', '.webp'}:
             return self.load_image(file_path)
         
         return []
