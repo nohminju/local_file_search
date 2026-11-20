@@ -14,6 +14,9 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 
+SEARCH_MODES = {'통합검색': 'hybrid', '이미지 검색': 'images', '본문 검색': 'documents'}
+
+
 class DocumentSearchApp(ctk.CTk):
     """폴더 분석, 검색, 결과 표시를 담당하는 메인 GUI 창."""
 
@@ -23,6 +26,7 @@ class DocumentSearchApp(ctk.CTk):
         self.service = None
         self.folder = ""
         self.busy = False
+        self.active_search_mode = 'hybrid'
         self.messages = queue.Queue()
         self.tasks = queue.Queue()
         threading.Thread(target=self.worker_loop, daemon=True).start()
@@ -55,13 +59,17 @@ class DocumentSearchApp(ctk.CTk):
         search_row = ctk.CTkFrame(content, fg_color="transparent")
         search_row.grid(row=2, column=0, sticky="ew", pady=(0, 12))
         search_row.grid_columnconfigure(0, weight=1)
+        self.mode_selector = ctk.CTkSegmentedButton(
+            search_row, values=list(SEARCH_MODES), command=self.on_mode_change)
+        self.mode_selector.set('통합검색')
+        self.mode_selector.grid(row=0, column=0, columnspan=2, sticky='w', pady=(0, 8))
         self.query_entry = ctk.CTkEntry(
             search_row, height=42, placeholder_text="찾고 싶은 파일의 내용을 입력하세요"
         )
-        self.query_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        self.query_entry.grid(row=1, column=0, sticky="ew", padx=(0, 8))
         self.query_entry.bind("<Return>", lambda event: self.search())
         self.search_button = ctk.CTkButton(search_row, text="검색", width=80, command=self.search)
-        self.search_button.grid(row=0, column=1)
+        self.search_button.grid(row=1, column=1)
         self.search_button.configure(state="disabled")
 
         self.status = ctk.CTkLabel(content, text="폴더 선택 → 분석 → 검색", anchor="w", text_color="#aab2c0")
@@ -88,9 +96,20 @@ class DocumentSearchApp(ctk.CTk):
         self.busy = busy
         self.folder_button.configure(state="disabled" if busy else "normal")
         self.analyze_button.configure(state="disabled" if busy else "normal")
+        self.mode_selector.configure(state="disabled" if busy else "normal")
         self.search_button.configure(state="normal" if self.service and not busy else "disabled")
         if text:
             self.status.configure(text=text)
+
+    def on_mode_change(self, label):
+        self.clear_results()
+        if label == '통합검색':
+            text = '통합검색: 기준 통과 결과를 정렬합니다.'
+        elif label == '본문 검색':
+            text = '본문 검색: 파일명 포함, 원본 점수순 상위 5개 (하한 미적용)'
+        else:
+            text = '이미지 검색: 원본 점수순 상위 5개 (하한 미적용)'
+        self.status.configure(text=text)
 
     def select_folder(self):
         folder = filedialog.askdirectory(parent=self)
@@ -140,10 +159,13 @@ class DocumentSearchApp(ctk.CTk):
             return
         self.set_busy(True, "검색 중...")
         self.show_message("검색 결과를 불러오고 있습니다...")
-        self.run_worker(self.search_job, query)
+        self.active_search_mode = SEARCH_MODES[self.mode_selector.get()]
+        self.run_worker(self.search_job, query, self.active_search_mode)
 
-    def search_job(self, query):
-        return self.service.search(query)
+    def search_job(self, query, mode='hybrid'):
+        if mode == 'hybrid':
+            return self.service.search(query)
+        return self.service.search(query, mode=mode)
 
     def poll_messages(self):
         try:
@@ -162,7 +184,9 @@ class DocumentSearchApp(ctk.CTk):
                         self.show_message("분석이 완료되었습니다. 검색어를 입력하세요.")
                 else:
                     self.show_results(result)
-                    self.status.configure(text=f"검색 결과 {len(result)}개 (모델별 유사도이며 확률이 아닙니다)")
+                    label = next(label for label, mode in SEARCH_MODES.items() if mode == self.active_search_mode)
+                    rule = '기준 필터 적용' if self.active_search_mode == 'hybrid' else '원본 점수순·하한 미적용'
+                    self.status.configure(text=f"{label}: {len(result)}개 ({rule}, 유사도는 확률이 아닙니다)")
         except queue.Empty:
             pass
         self.after(100, self.poll_messages)
@@ -174,7 +198,7 @@ class DocumentSearchApp(ctk.CTk):
             return
         for index, result in enumerate(results):
             info, score = result
-            source = {"documents": "본문", "images": "이미지"}[result.source]
+            source = {"documents": "본문", "images": "이미지", "filenames": "파일명"}[result.source]
             path = str(info.file_path)
             card = ctk.CTkFrame(self.results_frame, corner_radius=8)
             card.grid(row=index, column=0, sticky="ew", padx=5, pady=5)

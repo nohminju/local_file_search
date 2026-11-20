@@ -4,7 +4,7 @@ import queue
 import unittest
 from unittest.mock import Mock, patch
 
-from connection.service import SearchResult
+from connection.service import SearchResult, ScoredFile
 
 from gui.window import DocumentSearchApp
 
@@ -13,15 +13,17 @@ class GuiConnectionTests(unittest.TestCase):
     def make_app(self):
         app = object.__new__(DocumentSearchApp)
         app.folder = 'documents'
+        app.active_search_mode = 'hybrid'
         app.busy = False
         app.service = None
         app.messages = queue.Queue()
         app.tasks = queue.Queue()
         for name in ('service_factory', 'status', 'folder_button', 'analyze_button',
                      'search_button', 'show_message', 'show_results', 'after',
-                     'query_entry'):
+                     'query_entry', 'mode_selector'):
             setattr(app, name, Mock())
         app.query_entry.get.return_value = '검색 문장'
+        app.mode_selector.get.return_value = '통합검색'
         return app
 
     def test_successful_analysis_keeps_same_service_for_search(self):
@@ -58,7 +60,7 @@ class GuiConnectionTests(unittest.TestCase):
         app.service.search.return_value = []
         app.search()
         job, args = app.tasks.get_nowait()
-        self.assertEqual(args, ('검색 문장',))
+        self.assertEqual(args, ('검색 문장', 'hybrid'))
         self.assertTrue(app.busy)
         app.messages.put((job, job(*args), None))
         app.poll_messages()
@@ -86,3 +88,35 @@ class GuiConnectionTests(unittest.TestCase):
         texts = [call.kwargs.get('text', '') for call in label.call_args_list]
         self.assertTrue(any('이미지 유사도 0.2607' in text for text in texts))
         self.assertFalse(any('0.0759' in text for text in texts))
+
+
+    def test_individual_modes_are_captured_on_main_thread_and_passed_to_worker(self):
+        for label, mode in [('이미지 검색', 'images'), ('본문 검색', 'documents')]:
+            with self.subTest(mode=mode):
+                app = self.make_app()
+                app.service = Mock()
+                app.service.search.return_value = []
+                app.mode_selector.get.return_value = label
+                app.search()
+                job, args = app.tasks.get_nowait()
+                self.assertEqual(args, ('검색 문장', mode))
+                app.messages.put((job, job(*args), None))
+                app.poll_messages()
+                app.service.search.assert_called_once_with('검색 문장', mode=mode)
+                self.assertIn('하한 미적용', app.status.configure.call_args.kwargs['text'])
+
+    def test_filename_source_card_is_not_mislabeled_as_body(self):
+        app = self.make_app()
+        app.results_frame = Mock()
+        app.clear_results = Mock()
+        info = SimpleNamespace(file_name='persona.pptx', file_path='/persona.pptx')
+        with patch('gui.window.ctk.CTkFrame'), patch('gui.window.ctk.CTkLabel') as label, \
+             patch('gui.window.ctk.CTkButton'), patch('gui.window.ctk.CTkFont'):
+            DocumentSearchApp.show_results(app, [ScoredFile(info, 0.9, 'filenames')])
+        texts = [call.kwargs.get('text', '') for call in label.call_args_list]
+        self.assertTrue(any('파일명 유사도 0.9000' in text for text in texts))
+
+    def test_busy_state_disables_mode_switch(self):
+        app = self.make_app()
+        app.set_busy(True)
+        app.mode_selector.configure.assert_called_with(state='disabled')

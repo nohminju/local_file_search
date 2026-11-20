@@ -33,3 +33,5 @@
 | SQLite·FAISS | [nohminju · d3a7462](https://github.com/Edmond1889/local_file_search/blob/d3a7462/database/manager.py), [2a4d883](https://github.com/Edmond1889/local_file_search/blob/2a4d883/database/faiss.py) |
 
 - 실제 샘플 비교 후 본문/본문 검색어는 SentenceDocumentEmbedder(ko-sroberta 768차원), 이미지/이미지 검색어는 기존 OpenCLIP(512차원)으로 분리했습니다. 기존 OpenCLIP 본문 구현은 비교 경로로 보존했습니다. [비교 보고서](TEXT_MODEL_IMPROVEMENT_2026-11-20.md)
+
+- 긴 본문 분할·문서 파일명 검색과 GUI 세 모드를 추가했습니다. 파일명 일치 출처를 보존하고 개별 검색은 비교용 원본 점수를 표시합니다. [페르소나 개선 기록](PERSONA_SEARCH_IMPROVEMENT_2026-11-20.md)

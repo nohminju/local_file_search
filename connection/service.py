@@ -9,6 +9,14 @@ from database.db_info import DocumentInfo
 from file_loader.document_loader import DocumentScanner
 
 
+class ScoredFile(tuple):
+    """기존 (파일, 점수) 규격을 유지하며 본문/파일명/이미지 출처를 보존한다."""
+    def __new__(cls, file, score, source):
+        result = super().__new__(cls, (file, score))
+        result.source = source
+        return result
+
+
 @dataclass(frozen=True)
 class SearchResult:
     """score는 선택 모델의 원본 유사도, sort_score는 기준 초과 비율이다."""
@@ -27,10 +35,11 @@ class SearchResult:
 class DocumentSearch:
     def __init__(self, loader, image_encoder, document_encoder,
                  document_embedder, query_encoder, repository, vector_index,
-                 *, document_min_score=0.4, image_min_score=0.2):
+                 *, document_min_score=0.4, image_min_score=0.2, text_preparer=None):
         if any(not isfinite(value) or not -1 <= value < 1
                for value in (document_min_score, image_min_score)):
             raise ValueError("유사도 기준은 -1 이상 1 미만의 유한한 값이어야 합니다.")
+        self.text_preparer = text_preparer
         self.document_min_score = document_min_score
         self.image_min_score = image_min_score
         self.loader = loader
@@ -88,6 +97,9 @@ class DocumentSearch:
             text_chunks.extend(chunk for chunk in chunks if chunk.text.strip())
             documents.append(info)
 
+        if self.text_preparer is not None:
+            text_chunks = self.text_preparer.prepare(text_chunks, documents)
+
         if text_chunks:
             # 같은 본문은 한 번만 인코딩하되 각 파일·페이지의 메타데이터는 유지한다.
             unique_chunks, text_positions, by_text = [], [], {}
@@ -141,7 +153,8 @@ class DocumentSearch:
             info = self.repository.find_by_id(file_id)
             if info is None:
                 raise LookupError(f"DB에 파일 번호 {file_id}가 없습니다.")
-            results.append((info, hit['score']))
+            source = 'filenames' if hit['chunk'].get('chunk_type') == 'filename' else mode
+            results.append(ScoredFile(info, hit['score'], source))
             if len(results) >= top_k:
                 break
         return results
@@ -158,12 +171,15 @@ class DocumentSearch:
         img_results = self.search(query, top_k=count, mode='images')
         records = {}
         for mode, results in (('documents', doc_results), ('images', img_results)):
-            for info, score in results:
+            for hit in results:
+                info, score = hit
                 score = float(score)
                 if not isfinite(score):
                     continue
                 record = records.setdefault(info.file_id, dict(file=info, documents=None, images=None))
                 record[mode] = score
+                if mode == 'documents':
+                    record['document_source'] = getattr(hit, 'source', 'documents')
 
         matches = []
         for record in records.values():
@@ -179,7 +195,8 @@ class DocumentSearch:
                 continue
             # 같은 정렬값이면 본문을 표시한다. 파일 간 동점은 아래에서 경로로 정한다.
             sort_score, source, raw = max(eligible, key=lambda item: item[0])
-            matches.append(SearchResult(record['file'], raw, source, sort_score,
+            display_source = record.get('document_source', source) if source == 'documents' else source
+            matches.append(SearchResult(record['file'], raw, display_source, sort_score,
                                         record['documents'], record['images']))
 
         matches.sort(key=lambda result: (-result.sort_score,

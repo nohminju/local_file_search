@@ -382,3 +382,36 @@ class ConnectionTests(unittest.TestCase):
             self.service.analyze(self.folder)
         self.repository.save.assert_not_called()
         self.assertIsNone(self.vector_index.indices['img'])
+
+
+    def test_filename_evidence_preserves_source_in_raw_and_hybrid_results(self):
+        from connection.text_preparation import DocumentTextPreparer
+        tokenizer = Mock()
+        tokenizer.num_special_tokens_to_add.return_value = 2
+        tokenizer.encode.side_effect = lambda text, **kwargs: text.split()
+        tokenizer.decode.side_effect = lambda ids, **kwargs: ' '.join(ids)
+        self.service.text_preparer = DocumentTextPreparer(tokenizer, 10, overlap=2)
+        presentation = Presentation()
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = 'banana'
+        presentation.save(self.folder / 'apple_persona.pptx')
+        self.service.analyze(self.folder)
+        raw = self.service.search('apple', mode='documents')[0]
+        self.assertEqual(raw.source, 'filenames')
+        info, score = raw
+        self.assertEqual(info.file_name, 'apple_persona.pptx')
+        self.assertEqual(score, 1.)
+        hybrid = self.service.search('apple')[0]
+        self.assertEqual(hybrid.source, 'filenames')
+        self.assertEqual(hybrid.document_score, 1.)
+
+    def test_image_filename_does_not_create_a_fake_body_match(self):
+        from connection.text_preparation import DocumentTextPreparer
+        tokenizer = Mock()
+        tokenizer.num_special_tokens_to_add.return_value = 2
+        self.service.text_preparer = DocumentTextPreparer(tokenizer, 10, overlap=2)
+        Image.new('RGB', (8, 8)).save(self.folder / 'apple.jpg')
+        self.service.analyze(self.folder)
+        self.assertIsNone(self.vector_index.indices['doc'])
+        self.assertEqual(self.service.search('apple', mode='documents'), [])
+        self.assertEqual(self.service.search('apple')[0].source, 'images')
