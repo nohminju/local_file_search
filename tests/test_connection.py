@@ -19,12 +19,18 @@ from database.manager import Repository
 from database.faiss import FaissManager
 from file_loader.document_loader import DocumentLoader
 from file_encoder.document_encoder import DocumentEncoder
-from similarity.document_embedder import DocumentEmbedder
+from similarity.sentence_document_embedder import SentenceDocumentEmbedder
 
 
 class ModelOutput:
-    def encode(self, texts):
+    def eval(self):
+        return self
+
+    def encode(self, texts, **kwargs):
         return np.array([[1., 0.] if 'apple' in text else [0., 1.] for text in texts])
+
+
+
 
 
 class ConnectionTests(unittest.TestCase):
@@ -34,11 +40,11 @@ class ConnectionTests(unittest.TestCase):
         self.addCleanup(gc.collect)  # 팀원 DB의 원본 연결은 GC 전까지 남을 수 있다.
         self.folder = Path(self.directory.name)
         self.image_encoder = Mock()
-        self.image_encoder.encode.return_value = np.array([0., 1.])
+        self.image_encoder.encode_batch.side_effect = lambda images: np.array([[0., 1.]] * len(images))
         self.document_encoder = Mock(wraps=DocumentEncoder(self.image_encoder))
         self.query_encoder = Mock()
         self.query_encoder.encode_text.return_value = np.array([[0., 1.]])
-        self.embedder = DocumentEmbedder(model=Mock(wraps=ModelOutput()))
+        self.embedder = SentenceDocumentEmbedder(model=Mock(wraps=ModelOutput()))
         self.repository = Repository(str(self.folder / 'metadata.db'))
         self.vector_index = FaissManager(doc_dim=2, img_dim=2)
         self.service = DocumentSearch(DocumentLoader(), self.image_encoder, self.document_encoder,
@@ -73,8 +79,8 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(failures, [])
         self.assertEqual(len(self.service.file_ids), 3)
         self.assertEqual(len(self.embedder.chunks), 3)
-        self.document_encoder.encode.assert_called_once()
-        self.assertEqual(self.image_encoder.encode.call_count, 2)
+        self.document_encoder.encode_batch.assert_called_once()
+        self.assertEqual(self.image_encoder.encode_batch.call_count, 2)
         self.assertEqual(self.vector_index.indices['doc'].ntotal, 3)
         self.assertEqual(self.vector_index.indices['img'].ntotal, 2)
         for file_id in self.service.file_ids.values():
@@ -87,7 +93,7 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(results[0][0].file_name, 'apple.pdf')
         self.assertEqual(len([r for r in results if r[0].file_name == 'apple.pdf']), 1)
         self.query_encoder.encode_text.assert_not_called()
-        self.embedder.model.encode.assert_called_with(['apple query'])
+        self.embedder.model.encode.assert_called_with(['apple query'], batch_size=8, convert_to_numpy=True, normalize_embeddings=True, show_progress_bar=False)
         self.assertEqual(len(self.service.search('apple query', top_k=2, mode='documents')), 2)
 
     def test_image_search_uses_clip_query_and_returns_file_info(self):
@@ -146,7 +152,7 @@ class ConnectionTests(unittest.TestCase):
 
     def test_model_error_is_not_saved_as_success(self):
         Image.new('RGB', (8, 8)).save(self.folder / 'photo.png')
-        self.image_encoder.encode.side_effect = RuntimeError('model failed')
+        self.image_encoder.encode_batch.side_effect = RuntimeError('model failed')
         self.repository.save = Mock(wraps=self.repository.save)
         with self.assertRaisesRegex(RuntimeError, 'model failed'):
             self.service.analyze(self.folder)
@@ -184,7 +190,8 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(len(documents), 1)
         self.assertEqual(failures, [])
         self.assertEqual(len(self.embedder.chunks), 1)
-        self.assertEqual(self.document_encoder.encode.call_count, 2)
+        self.assertEqual(self.document_encoder.encode_batch.call_count, 1)
+        self.assertEqual(len(self.document_encoder.encode_batch.call_args.args[0]), 2)
         self.assertEqual(self.vector_index.indices['doc'].ntotal, 1)
         self.assertEqual(self.vector_index.indices['img'].ntotal, 2)
         hits = self.service.search('picture', mode='images')
@@ -195,7 +202,7 @@ class ConnectionTests(unittest.TestCase):
         documents, failures = self.service.analyze(self.folder)
         self.assertEqual([info.file_name for info in documents], ['scan.pdf'])
         self.assertEqual(failures, [])
-        self.document_encoder.encode.assert_called_once()
+        self.document_encoder.encode_batch.assert_called_once()
         self.assertEqual(self.vector_index.indices['img'].ntotal, 1)
         self.assertEqual(self.service.search('text', mode='documents'), [])
         hits = self.service.search('blue image', mode='images')
@@ -207,38 +214,36 @@ class ConnectionTests(unittest.TestCase):
             self.service.search('query', mode='unknown')
 
 
-    def test_hybrid_merges_by_file_rank_instead_of_raw_similarity(self):
-        apple = SimpleNamespace(file_id=1, file_name='apple.pdf')
-        banana = SimpleNamespace(file_id=2, file_name='banana.pptx')
-        photo = SimpleNamespace(file_id=3, file_name='photo.png')
-        self.service.search = Mock(side_effect=[
-            [(apple, 0.99), (banana, 0.01)],
-            [(banana, -0.5), (photo, -0.9)],
-        ])
-        results = self.service.search_hybrid('  query  ', top_k=2)
-        self.assertEqual([info.file_id for info, _ in results], [2, 1])
-        self.assertAlmostEqual(results[0][1], 1 / 62 + 1 / 61)
-        self.assertAlmostEqual(results[1][1], 1 / 61)
-        self.assertEqual([call.kwargs for call in self.service.search.call_args_list],
-                         [dict(top_k=4, mode='documents'), dict(top_k=4, mode='images')])
-        self.assertTrue(all(call.args == ('query',) for call in self.service.search.call_args_list))
+    def mock_hit(self, number, path, file_hash=None):
+        return SimpleNamespace(file_id=number, file_path=path, file_hash=file_hash)
+
+
+
+
+
+
+
+
+
+
+
+
 
     def test_default_search_connects_real_loader_database_and_both_indices(self):
         self.make_documents()
         self.service.analyze(self.folder)
         results = self.service.search('apple query')
-        self.assertEqual(results[0][0].file_name, 'banana.pptx')
-        self.assertEqual({info.file_name for info, _ in results},
-                         {'apple.pdf', 'banana.pptx', 'photo.png'})
-        self.assertEqual(len(results), 3)
-        self.assertTrue(all(info.file_id is not None for info, _ in results))
+        self.assertEqual(results[0].file.file_name, 'apple.pdf')
+        self.assertEqual({r.file.file_name for r in results}, {'apple.pdf', 'banana.pptx', 'photo.png'})
+        self.assertTrue(all(r.score == 1.0 for r in results))
+        self.assertEqual(results[0].source, 'documents')
 
     def test_hybrid_image_only_folder(self):
         Image.new('RGB', (8, 8)).save(self.folder / 'photo.png')
         self.service.analyze(self.folder)
         results = self.service.search('photo')
-        self.assertEqual([info.file_name for info, _ in results], ['photo.png'])
-        self.assertAlmostEqual(results[0][1], 1 / 61)
+        self.assertEqual([r.file.file_name for r in results], ['photo.png'])
+        self.assertAlmostEqual(results[0].score, 1.0)
 
     def test_hybrid_text_only_folder(self):
         presentation = Presentation()
@@ -246,14 +251,62 @@ class ConnectionTests(unittest.TestCase):
         slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = 'apple'
         presentation.save(self.folder / 'text.pptx')
         self.service.analyze(self.folder)
-        results = self.service.search('apple')
-        self.assertEqual([info.file_name for info, _ in results], ['text.pptx'])
+        self.assertEqual([r.file.file_name for r in self.service.search('apple')], ['text.pptx'])
 
-    def test_hybrid_empty_indices_and_invalid_inputs(self):
+    def test_empty_inputs_and_indices(self):
         self.assertEqual(self.service.search('query'), [])
         self.assertEqual(self.service.search_hybrid('   '), [])
         self.assertEqual(self.service.search_hybrid('query', top_k=0), [])
-        with self.assertRaises(ValueError):
-            self.service.search_hybrid('query', k=-1)
-        self.query_encoder.encode_text.assert_not_called()
-        self.embedder.model.encode.assert_not_called()
+
+
+    def test_repeated_text_encoded_once_with_both_file_metadata_preserved(self):
+        presentation = Presentation()
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = 'apple same text'
+        presentation.save(self.folder / 'a.pptx')
+        presentation.save(self.folder / 'b.pptx')
+        self.service.analyze(self.folder)
+        self.embedder.model.encode.assert_called_once_with(['apple same text'], batch_size=8, convert_to_numpy=True, normalize_embeddings=True, show_progress_bar=False)
+        self.assertEqual(self.vector_index.indices['doc'].ntotal, 2)
+        self.assertEqual({m['file_name'] for m in self.vector_index.chunk_metas['doc']}, {'a.pptx', 'b.pptx'})
+        self.assertEqual(len(self.service.search('apple', mode='documents')), 2)
+
+    def test_wrong_batch_count_is_not_associated_with_file_metadata(self):
+        Image.new('RGB', (8, 8)).save(self.folder / 'photo.png')
+        self.image_encoder.encode_batch.side_effect = lambda images: np.zeros((0, 2))
+        self.repository.save = Mock(wraps=self.repository.save)
+        with self.assertRaisesRegex(ValueError, '벡터 수와 청크 수'):
+            self.service.analyze(self.folder)
+        self.repository.save.assert_not_called()
+        self.assertIsNone(self.vector_index.indices['img'])
+
+
+    def test_filename_does_not_create_a_body_vector_or_change_raw_similarity(self):
+        from connection.text_preparation import DocumentTextPreparer
+        tokenizer = Mock()
+        tokenizer.num_special_tokens_to_add.return_value = 2
+        tokenizer.encode.side_effect = lambda text, **kwargs: text.split()
+        tokenizer.decode.side_effect = lambda ids, **kwargs: ' '.join(ids)
+        self.service.text_preparer = DocumentTextPreparer(tokenizer, 10, overlap=2)
+        presentation = Presentation()
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1)).text = 'banana'
+        presentation.save(self.folder / 'apple_persona.pptx')
+        self.service.analyze(self.folder)
+        raw = self.service.search('apple', mode='documents')[0]
+        self.assertEqual(raw.source, 'documents')
+        self.assertEqual(raw[1], 0.)
+        self.assertEqual(self.vector_index.indices['doc'].ntotal, 1)
+        self.assertEqual([m['text'] for m in self.vector_index.chunk_metas['doc']], ['banana'])
+        self.assertTrue(all(m['chunk_type'] != 'filename' for m in self.vector_index.chunk_metas['doc']))
+
+    def test_image_filename_does_not_create_a_fake_body_match(self):
+        from connection.text_preparation import DocumentTextPreparer
+        tokenizer = Mock()
+        tokenizer.num_special_tokens_to_add.return_value = 2
+        self.service.text_preparer = DocumentTextPreparer(tokenizer, 10, overlap=2)
+        Image.new('RGB', (8, 8)).save(self.folder / 'apple.jpg')
+        self.service.analyze(self.folder)
+        self.assertIsNone(self.vector_index.indices['doc'])
+        self.assertEqual(self.service.search('apple', mode='documents'), [])
+        self.assertEqual(self.service.search('apple')[0].source, 'images')

@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import Mock, PropertyMock, patch
 
 import numpy as np
+import torch
 from PIL import Image
 from pypdf import PdfWriter
 from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
@@ -100,14 +101,15 @@ class ImportedDocumentTests(unittest.TestCase):
 
     def test_embedder_search_uses_its_own_model(self):
         # 인코더 출력만 테스트 대역이다. 검색 수식은 가져온 원본을 그대로 실행한다.
-        embedder = DocumentEmbedder(model=Mock())
-        embedder.model.encode.side_effect = [np.array([[1., 0.], [0., 1.]]), np.array([[0., 1.]])]
+        tokenizer = Mock(side_effect=lambda texts: torch.zeros(len(texts), 2))
+        embedder = DocumentEmbedder(model=Mock(), tokenizer=tokenizer)
+        embedder.model.encode_text.side_effect = [torch.tensor([[1., 0.], [0., 1.]]), torch.tensor([[0., 1.]])]
         chunks = [DocumentChunk('a.pdf', 'a.pdf', 1, 'first', 'pdf'),
                   DocumentChunk('b.pdf', 'b.pdf', 2, 'second', 'pdf')]
         embedder.embed_chunks(chunks)
         results = embedder.search('second query', top_k=1)
         self.assertIs(results[0]['chunk'], chunks[1])
-        embedder.model.encode.assert_called_with(['second query'])
+        tokenizer.assert_called_with(['second query'])
 
     def test_image_encoder_wrapper_forwards_pil_input(self):
         image_encoder = Mock()

@@ -1,3 +1,4 @@
+"""이미지 검색어용 OpenCLIP 인코더. 본문 검색어는 SentenceDocumentEmbedder가 처리한다."""
 import torch
 import open_clip
 

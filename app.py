@@ -6,11 +6,12 @@ import open_clip
 from file_loader.document_loader import DocumentLoader
 from file_encoder.image_encoder import ImageEncoder
 from file_encoder.document_encoder import DocumentEncoder
-from similarity.document_embedder import DocumentEmbedder
+from similarity.sentence_document_embedder import SentenceDocumentEmbedder
 from query_encoder.text_encoder import KoreanTextEncoder
 from database.manager import Repository
 from database.faiss import FaissManager
 from connection.service import DocumentSearch
+from connection.text_preparation import DocumentTextPreparer
 
 
 def build_service():
@@ -22,11 +23,15 @@ def build_service():
         model=image_encoder.model,
         tokenizer=open_clip.get_tokenizer(model_name),
     )
-    document_embedder = DocumentEmbedder()
+    document_embedder = SentenceDocumentEmbedder()
+    text_preparer = DocumentTextPreparer(document_embedder.model.tokenizer,
+                                         document_embedder.model.max_seq_length)
     session = TemporaryDirectory(prefix='document-search-')
     repository = Repository(str(Path(session.name) / 'document_metadata.db'))
     service = DocumentSearch(DocumentLoader(), image_encoder, document_encoder,
-                             document_embedder, query_encoder, repository, FaissManager())
+                             document_embedder, query_encoder, repository,
+                             FaissManager(doc_dim=768, img_dim=512),
+                             text_preparer=text_preparer)
     service.session_directory = session
     return service
 
@@ -46,8 +51,10 @@ def main():
         if not query:
             break
         results = service.search(query)
-        for info, score in results:
-            print(f'{info.file_name} / 통합 순위 점수 {score:.4f}\n{info.file_path}')
+        for result in results:
+            info, score = result
+            source = {'documents': '본문', 'images': '이미지'}[result.source]
+            print(f'{info.file_name} / {source} 원본 유사도 {score:.4f}\n{info.file_path}')
         if not results:
             print('해당 검색 대상의 결과가 없습니다.')
 
