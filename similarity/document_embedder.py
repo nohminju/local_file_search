@@ -1,56 +1,76 @@
-from sentence_transformers import SentenceTransformer
+import torch
+import open_clip
 import numpy as np
 
+
 class DocumentEmbedder:
-    """
-    추출된 텍스트 조각(Chunk)들을 벡터화(임베딩)하고,
-    사용자 질문과 가장 유사한 텍스트를 검색하는 클래스입니다.
-    """
-    def __init__(self, model_name='jhgan/ko-sroberta-multitask'):
-        # 한국어 의미 파악에 특화된 pre-trained 임베딩 모델 로드
-        self.model = SentenceTransformer(model_name)
-        self.chunks = []
-        self.embeddings = None
+    def __init__(self, model=None, tokenizer=None, model_name='xlm-roberta-base-ViT-B-32', pretrained='laion5b_s13b_b90k'):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        # 공통 OpenCLIP 모델이 전달되면 재사용하고, 없으면 직접 로드
+        if model is not None and tokenizer is not None:
+            self.model = model
+            self.tokenizer = tokenizer
+        else:
+            self.model, _, _ = open_clip.create_model_and_transforms(model_name, pretrained=pretrained)
+            self.model = self.model.to(self.device)
+            self.model.eval()
+            self.tokenizer = open_clip.get_tokenizer(model_name)
+            
+        self.chunks = []         # 임베딩된 원본 DocumentChunk 리스트
+        self.embeddings = None   # 생성된 (N, 512) 2차원 벡터 배열
+
+    def _encode(self, text_list):
+        tokens = self.tokenizer(text_list).to(self.device)
+        with torch.no_grad():
+            features = self.model.encode_text(tokens)
+            # 코사인 유사도 계산을 위해 벡터 길이를 1로 맞추는 L2 정규화 수행
+            features = features / features.norm(dim=-1, keepdim=True)
+            return features.cpu().numpy().astype(np.float32)
 
     def embed_chunks(self, chunks):
-        """
-        문서 텍스트 조각(chunks) 리스트를 받아 벡터(숫자)로 변환합니다.
-        """
-        self.chunks = chunks
-        # 각 chunk 객체에서 텍스트 문자열만 추출
-        texts = [chunk.text for chunk in chunks]
-        if not texts:
-            return
+        # 원본 청크 구조는 유지하고 공백이 아닌 유효한 텍스트만 추출
+        self.chunks = [c for c in chunks if getattr(c, 'text', None) and c.text.strip()]
+        if not self.chunks:
+            self.embeddings = None
+            return None
         
-        # 문장들을 768차원 임베딩 벡터로 변환
-        self.embeddings = self.model.encode(texts)
+        texts = [c.text.strip() for c in self.chunks]
+        self.embeddings = self._encode(texts)  # (N, 512) 2차원 배열
+        return self.embeddings
 
-    def search(self, query, top_k=3):
-        """
-        사용자 질문(query)과 가장 코사인 유사도가 높은 텍스트 조각 상위 top_k개를 검색합니다.
-        """
-        # 생성된 임베딩 데이터가 없으면 빈 리스트 반환
+    def encode_query(self, query):
+        query = query.strip()
+        if not query:
+            return None
+        return self._encode([query])  # FAISS 규격에 맞춰 (1, 512) 2차원 배열로 반환
+
+    def search(self, query, top_k=3, min_score=0.0, debug=False):
         if self.embeddings is None or len(self.embeddings) == 0:
             return []
             
-        # 사용자 질문 문장도 동일한 모델로 벡터화
-        query_vec = self.model.encode([query])[0]
+        query_vec = self.encode_query(query)
+        if query_vec is None:
+            return []
         
-        # 코사인 유사도(Cosine Similarity) 계산 (분모: 벡터 크기 L2 norm)
-        norm_emb = np.linalg.norm(self.embeddings, axis=1)
-        norm_query = np.linalg.norm(query_vec)
-        
-        # 분자: 내적(dot product) / 분모: 크기 곱 (0 나누기 방지용 1e-8 추가)
-        sims = np.dot(self.embeddings, query_vec) / (norm_emb * norm_query + 1e-8)
-        
-        # 유사도 점수가 높은 순으로 정렬하여 상위 top_k개 인덱스 추출
+        # L2 정규화된 벡터이므로 내적만으로 코사인 유사도 산출
+        sims = np.dot(self.embeddings, query_vec.T).flatten()
         top_indices = np.argsort(sims)[::-1][:top_k]
         
-        # 최종 결과 반환 (해당 chunk와 유사도 점수)
+        # debug=True일 때 필터링 전 원본 점수 분포 출력
+        if debug:
+            print(f"\n[문서 검색 원본 점수 - '{query}']")
+            for rank, idx in enumerate(top_indices, 1):
+                preview = self.chunks[idx].text[:30].replace('\n', ' ')
+                print(f"  {rank}위 | 점수: {float(sims[idx]):.4f} | 내용: {preview}...")
+
+        # 기준 점수(min_score) 이상인 결과만 필터링하여 반환
         results = []
         for idx in top_indices:
-            results.append({
-                "chunk": self.chunks[idx],
-                "score": float(sims[idx])
-            })
+            score = float(sims[idx])
+            if score >= min_score:
+                results.append({
+                    "chunk": self.chunks[idx],
+                    "score": score
+                })
         return results
