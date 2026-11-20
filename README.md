@@ -46,7 +46,7 @@ cd C:\Capstone\document-search-demo-v3
 - PPT, HWP/HWPX, DOCX, TXT는 수집하지 않습니다. OCR과 문서 페이지 전체 이미지화는 지원하지 않습니다.
 - 파일명은 URL 디코딩 후 NFC로 정규화합니다. 실제 파일 경로는 변경하지 않습니다.
 - SQLite는 임시 DB, FAISS는 메모리 인덱스입니다. 재실행 시 다시 분석하며 GUI 재분석은 새 서비스를 만듭니다. 저장·복원 함수는 앱에 연결하지 않았습니다.
-- 샘플은 기존 `assets/images`, `test_assets`, `test.sample` 경로를 유지합니다. `encode_with_crops()`는 기본 분석에서 사용하지 않습니다.
+- 샘플은 `test_esset` 폴더에 통합했습니다. PPT 파일도 보관하지만 현재 분석 대상에서는 제외합니다. `encode_with_crops()`는 기본 분석에서 사용하지 않습니다.
 
 ## 코드와 검증
 
@@ -56,4 +56,4 @@ cd C:\Capstone\document-search-demo-v3
 python -B -m unittest discover -s tests -v
 ```
 
-2026-11-20 통합 테스트 66개가 통과했습니다. 모델 출력 대역과 실제 로더·SQLite·FAISS를 사용합니다. 이전 RRF 통합 단계에서는 캐시된 실제 OpenCLIP 모델로 PPTX 1개·PNG 1개의 분석과 통합 검색을 확인했습니다. 전체 데이터 검색 품질 평가와 GUI 육안 확인은 하지 않았습니다. Windows FAISS 저장 테스트는 한글 임시 경로 문제를 피하도록 영문 TEMP/TMP 경로를 사용했습니다.
+2026-11-20 통합 테스트 66개가 통과했습니다. 모델 출력 대역과 실제 로더·SQLite·FAISS를 사용합니다. 이전 RRF 통합 단계에서는 캐시된 실제 OpenCLIP 모델로 PPTX 1개·PNG 1개의 분석과 통합 검색을 확인했습니다. 이후 실제 샘플 38개를 분석한 결과, 고양이 사진이 무관한 문서에 밀리는 문제가 남았습니다. 데이터베이스 질의는 관련 문서 1위, 동적계획법은 3위였습니다. [실제 샘플 검색 확인](docs/REAL_SAMPLE_CHECK_2026-11-20.md)을 참고하세요. GUI 육안 확인은 하지 않았습니다. Windows FAISS 저장 테스트는 한글 임시 경로 문제를 피하도록 영문 TEMP/TMP 경로를 사용했습니다.
