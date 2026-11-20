@@ -26,26 +26,20 @@ class SharedTextEncoderTests(unittest.TestCase):
         load.assert_not_called()
         model.eval.assert_called_once()
 
-    def test_factory_shares_image_model_and_keeps_body_model_separate(self):
+    def test_factory_passes_image_model_and_tokenizer_to_query_encoder(self):
         with patch('app.ImageEncoder') as image_class, \
              patch('app.KoreanTextEncoder') as text_class, \
              patch('app.open_clip.get_tokenizer') as tokenizer, \
-             patch('app.SentenceDocumentEmbedder') as sentence_class, \
-             patch('app.DocumentTextPreparer') as prepare_class, \
-             patch('app.Repository'), patch('app.FaissManager') as index_class:
+             patch('app.DocumentEmbedder'), patch('app.Repository'), patch('app.FaissManager') as index_class:
             service = build_service()
             try:
-                text_class.assert_called_once_with(model=image_class.return_value.model,
-                                                   tokenizer=tokenizer.return_value)
-                sentence_class.assert_called_once_with()
-                self.assertIs(service.document_embedder, sentence_class.return_value)
-                self.assertIsNot(service.document_embedder.model, image_class.return_value.model)
+                text_class.assert_called_once_with(
+                    model=image_class.return_value.model,
+                    tokenizer=tokenizer.return_value,
+                )
                 self.assertIs(service.document_encoder.image_encoder, service.image_encoder)
                 self.assertIs(service.query_encoder, text_class.return_value)
                 image_class.assert_called_once()
-                index_class.assert_called_once_with(doc_dim=768, img_dim=512)
-                prepare_class.assert_called_once_with(sentence_class.return_value.model.tokenizer,
-                                                       sentence_class.return_value.model.max_seq_length)
-                self.assertIs(service.text_preparer, prepare_class.return_value)
+                self.assertIs(service.vector_index, index_class.return_value)
             finally:
                 service.session_directory.cleanup()

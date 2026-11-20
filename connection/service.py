@@ -1,7 +1,5 @@
 """로더·인코더·FAISS 검색 결과를 SQLite 파일 정보와 연결한다."""
-from dataclasses import dataclass
 from datetime import datetime, timezone
-from math import isfinite
 from hashlib import sha256
 from pathlib import Path
 
@@ -9,33 +7,9 @@ from database.db_info import DocumentInfo
 from file_loader.document_loader import DocumentScanner
 
 
-class ScoredFile(tuple):
-    """기존 (파일, 점수) 규격을 유지하며 본문/이미지 출처를 보존한다."""
-    def __new__(cls, file, score, source):
-        result = super().__new__(cls, (file, score))
-        result.source = source
-        return result
-
-
-@dataclass(frozen=True)
-class SearchResult:
-    """score는 선택 근거의 원본 코사인 유사도다."""
-    file: DocumentInfo
-    score: float
-    source: str
-    document_score: float | None
-    image_score: float | None
-
-    def __iter__(self):
-        # 기존 (파일 정보, 점수) 소비 코드는 유지하면서 모델별 상세값도 제공한다.
-        return iter((self.file, self.score))
-
-
 class DocumentSearch:
     def __init__(self, loader, image_encoder, document_encoder,
-                 document_embedder, query_encoder, repository, vector_index,
-                 *, text_preparer=None):
-        self.text_preparer = text_preparer
+                 document_embedder, query_encoder, repository, vector_index):
         self.loader = loader
         self.image_encoder = image_encoder
         self.document_encoder = document_encoder
@@ -78,33 +52,19 @@ class DocumentSearch:
                 continue
 
             # 문서 이미지도 chunk_type이 image이므로 원본 확장자로 인코더를 고른다.
-            encoder = (self.document_encoder if path.suffix.lower() in DocumentScanner.DOCUMENT_EXTENSIONS
+            encoder = (self.document_encoder if path.suffix.lower() in {'.pdf', '.pptx'}
                        else self.image_encoder)
             # 모델 오류는 읽기 실패로 숨기지 않고 호출자에게 전달한다.
-            file_images = [chunk for chunk in chunks if chunk.image is not None]
-            if file_images:
-                vectors = encoder.encode_batch([chunk.image for chunk in file_images])
-                if len(vectors) != len(file_images):
-                    raise ValueError("이미지 벡터 수와 청크 수가 일치하지 않습니다.")
-                image_vectors.extend(vectors)
-                image_chunks.extend(file_images)
+            for chunk in chunks:
+                if chunk.image is not None:
+                    image_vectors.append(encoder.encode(chunk.image))
+                    image_chunks.append(chunk)
             text_chunks.extend(chunk for chunk in chunks if chunk.text.strip())
             documents.append(info)
 
-        if self.text_preparer is not None:
-            text_chunks = self.text_preparer.prepare(text_chunks)
-
         if text_chunks:
-            # 같은 본문은 한 번만 인코딩하되 각 파일·페이지의 메타데이터는 유지한다.
-            unique_chunks, text_positions, by_text = [], [], {}
-            for chunk in text_chunks:
-                if chunk.text not in by_text:
-                    by_text[chunk.text] = len(unique_chunks)
-                    unique_chunks.append(chunk)
-                text_positions.append(by_text[chunk.text])
-            self.document_embedder.embed_chunks(unique_chunks)
-            vectors = self.document_embedder.embeddings[text_positions]
-            self.vector_index.add_documents(vectors, text_chunks)
+            self.document_embedder.embed_chunks(text_chunks)
+            self.vector_index.add_documents(self.document_embedder.embeddings, text_chunks)
         if image_chunks:
             self.vector_index.add_images(image_vectors, image_chunks)
 
@@ -113,7 +73,7 @@ class DocumentSearch:
         return documents, failures
 
     def search(self, query, top_k=5, mode='hybrid'):
-        """통합검색은 파일 종류별 원본 유사도의 최댓값으로 정렬한다."""
+        """기본 검색은 본문·이미지 순위를 합친다. mode는 내부 개별 검색에 사용한다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
@@ -125,7 +85,7 @@ class DocumentSearch:
             if not count:
                 return []
             # 본문과 같은 모델로 검색 문장을 인코딩하고 비교는 팀원 FAISS에 맡긴다.
-            query_vector = self.document_embedder.encode_query(query)
+            query_vector = self.document_embedder.model.encode([query])
             hits = self.vector_index.search_documents(query_vector, top_k=count)
         elif mode == 'images':
             count = len(self.vector_index.chunk_metas['img'])
@@ -140,8 +100,6 @@ class DocumentSearch:
         seen = set()
         # FAISS가 점수순으로 반환하므로 같은 파일의 첫 결과가 최고 점수다.
         for hit in hits:
-            if mode == 'documents' and hit['chunk'].get('chunk_type') == 'filename':
-                continue  # 이전 인덱스의 파일명 청크도 검색에 사용하지 않는다.
             file_id = self.file_ids[hit['chunk']['file_path']]
             if file_id in seen:
                 continue
@@ -149,54 +107,27 @@ class DocumentSearch:
             info = self.repository.find_by_id(file_id)
             if info is None:
                 raise LookupError(f"DB에 파일 번호 {file_id}가 없습니다.")
-            source = mode
-            result = ScoredFile(info, hit['score'], source)
-            results.append(result)
+            results.append((info, hit['score']))
             if len(results) >= top_k:
                 break
         return results
 
-    def search_hybrid(self, query, top_k=5):
-        """이미지는 이미지 점수만, PDF/PPTX는 본문·이미지 중 높은 원본 점수를 쓴다."""
+    def search_hybrid(self, query, top_k=5, k=60):
+        """본문·이미지의 파일 순위를 RRF로 합친다. 점수는 유사도가 아니다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
-        # 최종 결과 수를 제한하기 전에 등록 파일 전체에서 최고 점수를 찾는다.
-        count = max(len(self.file_ids), top_k)
-        doc_hits = self.search(query, top_k=count, mode='documents')
-        image_hits = self.search(query, top_k=count, mode='images')
-        records = {}
-        image_extensions = DocumentScanner.IMAGE_EXTENSIONS
-        document_extensions = DocumentScanner.DOCUMENT_EXTENSIONS
-        for mode, hits in (('documents', doc_hits), ('images', image_hits)):
-            for info, raw in hits:
-                extension = Path(info.file_path).suffix.lower()
-                if extension not in image_extensions | document_extensions:
-                    continue
-                if mode == 'documents' and extension not in document_extensions:
-                    continue  # 이미지 파일에는 본문 점수를 섞지 않는다.
-                raw = float(raw)
-                if not isfinite(raw):
-                    continue  # 유효성 검사. 음수를 포함한 유한한 점수에는 하한을 두지 않는다.
-                record = records.setdefault(info.file_id, dict(file=info, documents=None, images=None))
-                previous = record[mode]
-                if previous is None or raw > previous:
-                    record[mode] = raw
-        matches = []
-        for record in records.values():
-            available = [(record[mode], mode) for mode in ('documents', 'images') if record[mode] is not None]
-            score, source = max(available, key=lambda item: item[0])
-            matches.append(SearchResult(record['file'], score, source,
-                                        record['documents'], record['images']))
-        matches.sort(key=lambda r: (-r.score, r.file.file_path.casefold(), r.file.file_path))
-        results, seen = [], set()
-        for match in matches:
-            file_hash = getattr(match.file, 'file_hash', None)
-            identity = ('hash', file_hash) if file_hash else ('path', match.file.file_path)
-            if identity in seen:
-                continue
-            seen.add(identity)
-            results.append(match)
-            if len(results) >= top_k:
-                break
-        return results
+        if k < 0:
+            raise ValueError("RRF의 k는 0 이상이어야 합니다.")
+
+        doc_results = self.search(query, top_k=top_k * 2, mode='documents')
+        img_results = self.search(query, top_k=top_k * 2, mode='images')
+        rrf_scores, info_map = {}, {}
+        for results in (doc_results, img_results):
+            for rank, (info, _) in enumerate(results, start=1):
+                file_id = info.file_id
+                info_map[file_id] = info
+                rrf_scores[file_id] = rrf_scores.get(file_id, 0.0) + 1.0 / (k + rank)
+
+        ranked = sorted(rrf_scores, key=rrf_scores.get, reverse=True)
+        return [(info_map[file_id], rrf_scores[file_id]) for file_id in ranked[:top_k]]
