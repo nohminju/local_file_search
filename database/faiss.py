@@ -5,7 +5,7 @@ import numpy as np
 
 
 class FaissManager:
-    def __init__(self, doc_dim=768, img_dim=512):
+    def __init__(self, doc_dim=512, img_dim=512):
         # 문서(텍스트)와 이미지 임베딩 모델의 출력 벡터 차원 수 설정
         self.dims = {'doc': doc_dim, 'img': img_dim}
         # 실제 벡터 유사도 검색을 수행하는 FAISS 인덱스 객체
