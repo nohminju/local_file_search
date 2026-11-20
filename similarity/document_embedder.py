@@ -4,9 +4,14 @@ import numpy as np
 
 
 class DocumentEmbedder:
-    def __init__(self, model=None, tokenizer=None, model_name='xlm-roberta-base-ViT-B-32', pretrained='laion5b_s13b_b90k'):
+    def __init__(self, model=None, tokenizer=None, model_name='xlm-roberta-base-ViT-B-32', pretrained='laion5b_s13b_b90k', batch_size=8):
+        if batch_size < 1:
+            raise ValueError('batch_size는 1 이상이어야 합니다.')
+        if (model is None) != (tokenizer is None):
+            raise ValueError('공유 모델과 tokenizer를 함께 전달하세요.')
+        self.batch_size = batch_size
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        
+
         # 공통 OpenCLIP 모델이 전달되면 재사용하고, 없으면 직접 로드
         if model is not None and tokenizer is not None:
             self.model = model
@@ -14,19 +19,22 @@ class DocumentEmbedder:
         else:
             self.model, _, _ = open_clip.create_model_and_transforms(model_name, pretrained=pretrained)
             self.model = self.model.to(self.device)
-            self.model.eval()
             self.tokenizer = open_clip.get_tokenizer(model_name)
-            
+        self.model.eval()
+
         self.chunks = []         # 임베딩된 원본 DocumentChunk 리스트
         self.embeddings = None   # 생성된 (N, 512) 2차원 벡터 배열
 
     def _encode(self, text_list):
-        tokens = self.tokenizer(text_list).to(self.device)
-        with torch.no_grad():
-            features = self.model.encode_text(tokens)
-            # 코사인 유사도 계산을 위해 벡터 길이를 1로 맞추는 L2 정규화 수행
-            features = features / features.norm(dim=-1, keepdim=True)
-            return features.cpu().numpy().astype(np.float32)
+        batches = []
+        # 문서 전체를 한 번에 GPU에 올리지 않고 이미지와 같은 작은 배치로 처리한다.
+        for start in range(0, len(text_list), self.batch_size):
+            tokens = self.tokenizer(text_list[start:start + self.batch_size]).to(self.device)
+            with torch.no_grad():
+                features = self.model.encode_text(tokens)
+                features = features / features.norm(dim=-1, keepdim=True)
+                batches.append(features.cpu().numpy().astype(np.float32))
+        return np.concatenate(batches, axis=0)
 
     def embed_chunks(self, chunks):
         # 원본 청크 구조는 유지하고 공백이 아닌 유효한 텍스트만 추출
@@ -34,7 +42,7 @@ class DocumentEmbedder:
         if not self.chunks:
             self.embeddings = None
             return None
-        
+
         texts = [c.text.strip() for c in self.chunks]
         self.embeddings = self._encode(texts)  # (N, 512) 2차원 배열
         return self.embeddings
@@ -48,15 +56,15 @@ class DocumentEmbedder:
     def search(self, query, top_k=3, min_score=0.0, debug=False):
         if self.embeddings is None or len(self.embeddings) == 0:
             return []
-            
+
         query_vec = self.encode_query(query)
         if query_vec is None:
             return []
-        
+
         # L2 정규화된 벡터이므로 내적만으로 코사인 유사도 산출
         sims = np.dot(self.embeddings, query_vec.T).flatten()
         top_indices = np.argsort(sims)[::-1][:top_k]
-        
+
         # debug=True일 때 필터링 전 원본 점수 분포 출력
         if debug:
             print(f"\n[문서 검색 원본 점수 - '{query}']")

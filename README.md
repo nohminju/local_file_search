@@ -4,55 +4,55 @@ PDF·PPTX의 본문과 내부 이미지, 일반 이미지 파일을 문장으로
 
 ## 설치와 실행
 
-Python과 Tkinter가 필요합니다. 현재 테스트 환경은 Python 3.14입니다. 가상환경 사용을 권장하며, 설치와 실행에는 같은 Python 환경을 사용하세요.
+Python과 Tkinter가 필요합니다. 통합 검증에는 Python 3.14 환경을 사용했습니다. 설치와 실행에는 같은 Python 환경을 사용하세요.
 
-```sh
-git clone https://github.com/Edmond1889/local_file_search.git
-cd local_file_search
+```powershell
 python -m pip install -r requirements.txt
 python app.py --gui
 ```
 
-첫 실행에는 AI 모델 다운로드가 필요할 수 있습니다. Tkinter가 포함되지 않은 Python 환경에서는 별도로 설치해야 합니다.
+콘솔 실행은 `python app.py`입니다. GUI에서는 폴더 선택 → 분석 → 검색어 입력 → 검색 순서로 사용합니다. 첫 실행에는 모델 다운로드가 필요할 수 있습니다.
 
-화면에서 **폴더 선택 → 분석 → 검색어 입력 → 검색** 순서로 사용합니다. 결과의 열기 버튼이나 더블클릭으로 파일을 엽니다. 분석·검색 중에도 화면이 반응하도록 작업 스레드를 사용합니다.
+이 PC에서는 기존 환경을 재사용해 다음과 같이 실행할 수 있습니다.
 
-콘솔 실행은 `python app.py`입니다. 검색어를 입력하면 본문과 이미지를 자동으로 함께 검색하고, 검색어를 비우면 종료합니다.
+```powershell
+cd C:\Capstone\document-search-demo-v3
+& C:\Capstone\document-search-demo-v2\.venv314\Scripts\python.exe app.py --gui
+```
 
-## 검색 방식
+## 현재 모델과 연결
 
-검색 모드를 선택할 필요 없이 본문과 이미지를 모두 검색해 하나의 파일 목록으로 보여줍니다. 같은 파일의 여러 페이지·그림은 파일 하나로 묶어 기본 5개 결과를 반환합니다.
+2026-11-20 main의 변경을 반영해 본문·이미지·검색어 모두 OpenCLIP `xlm-roberta-base-ViT-B-32` / `laion5b_s13b_b90k`를 사용합니다. 앱에서 모델 객체와 tokenizer를 공유하며 본문·이미지는 각각 별도 512차원 FAISS 인덱스에 저장합니다. 이전 본문 모델은 `jhgan/ko-sroberta-multitask` / 768차원이었습니다.
 
-내부적으로 본문·이미지에서 각각 최대 10개 파일을 찾고, 순위마다 `1 / (60 + 순위)`를 부여해 같은 파일의 점수를 더합니다(RRF). 두 심사위원의 순위표를 합치는 방식입니다. 한쪽 검색 대상이 없으면 다른 쪽 결과를 사용합니다. 표시되는 통합 순위 점수는 정확도나 확률이 아닙니다.
+본문 검색은 `DocumentEmbedder.encode_query()`를 호출합니다. 이미지는 파일 안의 그림을 배치로 인코딩하고, 동일 본문은 한 번만 인코딩한 뒤 모든 원본 청크의 파일·페이지 메타데이터를 연결합니다. 본문 인코딩도 기본 8개씩 배치 처리합니다.
 
-## 지원 파일과 제약
+## 검색 결과
 
-- **PDF:** 추출 가능한 본문과 내부 이미지. 가로·세로가 모두 100px 이상인 이미지를 처리합니다.
-- **PPTX:** 글·표의 본문과 슬라이드 내부 이미지.
-- **JPG / JPEG / PNG / WEBP:** 일반 이미지 검색.
-- PPT, HWP/HWPX, DOCX, TXT 등은 수집하지 않습니다. OCR과 문서 페이지 전체 이미지화는 지원하지 않습니다.
-- 파일 정보는 임시 SQLite DB에, 벡터는 메모리의 FAISS 인덱스에 둡니다. 재실행하면 다시 분석해야 하며 GUI에서 재분석하면 새 서비스를 만듭니다. FAISS 저장·복원 함수는 앱에 연결되지 않았습니다.
-- 관련 없는 파일도 상위에 나올 수 있고 한영 용어 표기에 따라 결과가 달라질 수 있습니다. 실제 자료에서 통합 검색의 품질 개선 여부는 아직 검증하지 않았습니다.
+- 모드 선택 없이 본문과 이미지를 함께 검색하고 파일별 최고 결과를 사용합니다.
+- 본문 0.4, 이미지 0.2의 초기 하한을 적용합니다. `DocumentSearch`의 `document_min_score`, `image_min_score`로 조정합니다. **본문 0.4는 이전 모델에서 정한 값을 유지한 것으로 새 OpenCLIP 본문 모델에 대한 적정성은 미검증입니다.**
+- 하한을 통과한 본문·이미지 목록을 각각 원본 유사도 내림차순으로 정렬하고, **RRF = 각 목록의 `1 / (60 + 순위)` 합계**로 결합합니다. 순위는 1부터 시작하고 두 목록에 나온 파일은 두 기여를 더합니다. 유사도·확률이 아닌 최종 정렬 점수입니다.
+- GUI·콘솔에는 RRF 기여가 큰 쪽의 원본 유사도와 모델 출처를 표시합니다. 동점이면 본문을 표시합니다. 양쪽 원본 점수는 SearchResult.document_score/image_score에 따로 보관합니다.
+- 같은 파일의 여러 페이지·그림을 묶고 SHA-256이 같은 내용도 하나만 반환합니다. 동점은 경로 순서로 정합니다.
+- 기본 최대 5개이며 하한을 통과한 결과가 부족하면 적게 반환합니다.
 
-## 코드 구성
+이전 본문 모델의 실제 검색 품질·속도 측정은 [11월 17일 기록](docs/SEARCH_AND_UNUSED_CODE_2026-11-17.md)에 있습니다. 현재 모델의 성능 수치로 해석하지 마세요. OpenCLIP tokenizer의 최대 길이를 넘는 본문은 잘릴 수 있으며 별도 긴 문장 분할은 구현하지 않았습니다.
 
-`app.py`가 모듈을 만들고, `connection/service.py`가 파일 수집·읽기 → 인코딩 → FAISS 등록·DB 저장 → 검색 결과 정리를 연결합니다. `gui/window.py`는 작업 요청과 결과 표시를 담당합니다. 모듈별 담당은 [담당 범위](docs/CODE_OWNERSHIP.md)를 참고하세요.
+## 지원 범위와 제약
 
-| 용도 | 모델 | 벡터 차원 |
-|---|---|---|
-| 본문·본문 검색어 | `jhgan/ko-sroberta-multitask` | 768 |
-| 이미지·이미지 검색어 | OpenCLIP `xlm-roberta-base-ViT-B-32`, 가중치 `laion5b_s13b_b90k` | 512 |
+- PDF: 추출 가능한 본문과 가로·세로 모두 100px 이상인 내부 이미지.
+- PPTX: 글·표의 본문과 내부 이미지.
+- JPG / JPEG / PNG / WEBP: 일반 이미지.
+- PPT, HWP/HWPX, DOCX, TXT는 수집하지 않습니다. OCR과 문서 페이지 전체 이미지화는 지원하지 않습니다.
+- 파일명은 URL 디코딩 후 NFC로 정규화합니다. 실제 파일 경로는 변경하지 않습니다.
+- SQLite는 임시 DB, FAISS는 메모리 인덱스입니다. 재실행 시 다시 분석하며 GUI 재분석은 새 서비스를 만듭니다. 저장·복원 함수는 앱에 연결하지 않았습니다.
+- 샘플은 기존 `assets/images`, `test_assets`, `test.sample` 경로를 유지합니다. `encode_with_crops()`는 기본 분석에서 사용하지 않습니다.
 
-이미지와 이미지 검색어는 같은 OpenCLIP 모델 객체를 공유하며, 본문과 이미지는 별도 FAISS 인덱스로 검색합니다.
+## 코드와 검증
 
-## 검증과 기록
+`app.py`가 객체를 만들고 `connection/service.py`가 분석·검색을 연결합니다. `gui/window.py`가 화면과 작업 큐를 담당합니다. [담당 범위](docs/CODE_OWNERSHIP.md), [통합 변경 정리](docs/INTEGRATION_2026-11-20.md), [활동 기록](docs/ACTIVITY_LOG.md)을 참고하세요.
 
-```sh
+```powershell
 python -B -m unittest discover -s tests -v
 ```
 
-2026-11-17 기준 43개 테스트가 통과했습니다. 실제 로더·SQLite·FAISS와 모델 출력 대역을 사용한 결과이며, 실제 모델 검색 품질과 GUI 육안 확인은 포함하지 않습니다. Windows에서 FAISS 저장 테스트의 임시 경로에 한글이 있으면 오류가 발생할 수 있어 검증에는 영문 임시 경로를 사용했습니다.
-
-- [서비스 오류와 수정 사항](docs/SERVICE_REPAIR_2026-11-17.md)
-- [활동 기록](docs/ACTIVITY_LOG.md)
-- [이미지 모델 비교 결과](tests/image_model_comparison_results.json): 소규모 실험 기록이며, 재실행 코드는 Git에 포함되지 않은 로컬 이미지 자료가 필요합니다.
+2026-11-20 통합 테스트 65개가 통과했습니다. 모델 출력 대역과 실제 로더·SQLite·FAISS를 사용합니다. 추가로 캐시된 실제 OpenCLIP 모델로 PPTX 1개·PNG 1개의 분석과 통합 검색을 확인했습니다. 전체 데이터 검색 품질 평가와 GUI 육안 확인은 하지 않았습니다. Windows FAISS 저장 테스트는 한글 임시 경로 문제를 피하도록 영문 TEMP/TMP 경로를 사용했습니다.

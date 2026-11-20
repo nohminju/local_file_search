@@ -1,7 +1,10 @@
 """창을 띄우지 않고 GUI의 작업 큐와 결과 처리를 검증한다."""
+from types import SimpleNamespace
 import queue
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+
+from connection.service import SearchResult
 
 from gui.window import DocumentSearchApp
 
@@ -70,3 +73,16 @@ class GuiConnectionTests(unittest.TestCase):
         app.analyze()
         app.search()
         self.assertTrue(app.tasks.empty())
+
+    def test_result_card_shows_original_score_and_source(self):
+        app = self.make_app()
+        app.results_frame = Mock()
+        app.clear_results = Mock()
+        info = SimpleNamespace(file_name='cat.jpg', file_path='/cat.jpg')
+        result = SearchResult(info, 0.260748, 'images', 0.075935, None, 0.260748)
+        with patch('gui.window.ctk.CTkFrame'), patch('gui.window.ctk.CTkLabel') as label, \
+             patch('gui.window.ctk.CTkButton'), patch('gui.window.ctk.CTkFont'):
+            DocumentSearchApp.show_results(app, [result])
+        texts = [call.kwargs.get('text', '') for call in label.call_args_list]
+        self.assertTrue(any('이미지 유사도 0.2607' in text for text in texts))
+        self.assertFalse(any('0.0759' in text for text in texts))

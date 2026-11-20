@@ -1,5 +1,7 @@
 """로더·인코더·FAISS 검색 결과를 SQLite 파일 정보와 연결한다."""
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import isfinite
 from hashlib import sha256
 from pathlib import Path
 
@@ -7,9 +9,30 @@ from database.db_info import DocumentInfo
 from file_loader.document_loader import DocumentScanner
 
 
+@dataclass(frozen=True)
+class SearchResult:
+    """score는 선택 모델의 원본 유사도, sort_score는 RRF 정렬값이다."""
+    file: DocumentInfo
+    score: float
+    source: str
+    sort_score: float
+    document_score: float | None
+    image_score: float | None
+
+    def __iter__(self):
+        # 기존 (파일 정보, 점수) 소비 코드는 유지하면서 모델별 상세값도 제공한다.
+        return iter((self.file, self.score))
+
+
 class DocumentSearch:
     def __init__(self, loader, image_encoder, document_encoder,
-                 document_embedder, query_encoder, repository, vector_index):
+                 document_embedder, query_encoder, repository, vector_index,
+                 *, document_min_score=0.4, image_min_score=0.2):
+        if any(not isfinite(value) or not -1 <= value < 1
+               for value in (document_min_score, image_min_score)):
+            raise ValueError("유사도 기준은 -1 이상 1 미만의 유한한 값이어야 합니다.")
+        self.document_min_score = document_min_score
+        self.image_min_score = image_min_score
         self.loader = loader
         self.image_encoder = image_encoder
         self.document_encoder = document_encoder
@@ -55,16 +78,27 @@ class DocumentSearch:
             encoder = (self.document_encoder if path.suffix.lower() in {'.pdf', '.pptx'}
                        else self.image_encoder)
             # 모델 오류는 읽기 실패로 숨기지 않고 호출자에게 전달한다.
-            for chunk in chunks:
-                if chunk.image is not None:
-                    image_vectors.append(encoder.encode(chunk.image))
-                    image_chunks.append(chunk)
+            file_images = [chunk for chunk in chunks if chunk.image is not None]
+            if file_images:
+                vectors = encoder.encode_batch([chunk.image for chunk in file_images])
+                if len(vectors) != len(file_images):
+                    raise ValueError("이미지 벡터 수와 청크 수가 일치하지 않습니다.")
+                image_vectors.extend(vectors)
+                image_chunks.extend(file_images)
             text_chunks.extend(chunk for chunk in chunks if chunk.text.strip())
             documents.append(info)
 
         if text_chunks:
-            self.document_embedder.embed_chunks(text_chunks)
-            self.vector_index.add_documents(self.document_embedder.embeddings, text_chunks)
+            # 같은 본문은 한 번만 인코딩하되 각 파일·페이지의 메타데이터는 유지한다.
+            unique_chunks, text_positions, by_text = [], [], {}
+            for chunk in text_chunks:
+                if chunk.text not in by_text:
+                    by_text[chunk.text] = len(unique_chunks)
+                    unique_chunks.append(chunk)
+                text_positions.append(by_text[chunk.text])
+            self.document_embedder.embed_chunks(unique_chunks)
+            vectors = self.document_embedder.embeddings[text_positions]
+            self.vector_index.add_documents(vectors, text_chunks)
         if image_chunks:
             self.vector_index.add_images(image_vectors, image_chunks)
 
@@ -73,7 +107,7 @@ class DocumentSearch:
         return documents, failures
 
     def search(self, query, top_k=5, mode='hybrid'):
-        """기본 검색은 본문·이미지 순위를 합친다. mode는 내부 개별 검색에 사용한다."""
+        """기본 검색은 모델별 기준을 통과한 원본 유사도를 보존해 통합한다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
@@ -85,7 +119,7 @@ class DocumentSearch:
             if not count:
                 return []
             # 본문과 같은 모델로 검색 문장을 인코딩하고 비교는 팀원 FAISS에 맡긴다.
-            query_vector = self.document_embedder.model.encode([query])
+            query_vector = self.document_embedder.encode_query(query)
             hits = self.vector_index.search_documents(query_vector, top_k=count)
         elif mode == 'images':
             count = len(self.vector_index.chunk_metas['img'])
@@ -113,21 +147,53 @@ class DocumentSearch:
         return results
 
     def search_hybrid(self, query, top_k=5, k=60):
-        """본문·이미지의 파일 순위를 RRF로 합친다. 점수는 유사도가 아니다."""
+        """모델별 원본 유사도 하한 필터 → 통과 목록의 순위를 RRF로 결합한다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
-        if k < 0:
-            raise ValueError("RRF의 k는 0 이상이어야 합니다.")
+        if not isfinite(k) or k < 0:
+            raise ValueError('RRF의 k는 0 이상의 유한한 값이어야 합니다.')
 
-        doc_results = self.search(query, top_k=top_k * 2, mode='documents')
-        img_results = self.search(query, top_k=top_k * 2, mode='images')
-        rrf_scores, info_map = {}, {}
-        for results in (doc_results, img_results):
-            for rank, (info, _) in enumerate(results, start=1):
-                file_id = info.file_id
-                info_map[file_id] = info
-                rrf_scores[file_id] = rrf_scores.get(file_id, 0.0) + 1.0 / (k + rank)
+        # 필터·내용 중복 제거 후에도 결과를 채울 수 있도록 등록 파일 전체를 후보로 받는다.
+        count = max(len(self.file_ids), top_k * 2)
+        doc_results = self.search(query, top_k=count, mode='documents')
+        img_results = self.search(query, top_k=count, mode='images')
+        records = {}
+        for mode, results in (('documents', doc_results), ('images', img_results)):
+            for info, score in results:
+                score = float(score)
+                if not isfinite(score):
+                    continue
+                record = records.setdefault(info.file_id, dict(file=info, documents=None, images=None))
+                record[mode] = score
 
-        ranked = sorted(rrf_scores, key=rrf_scores.get, reverse=True)
-        return [(info_map[file_id], rrf_scores[file_id]) for file_id in ranked[:top_k]]
+        # 하한 미달은 순위에도 포함하지 않는다. 파일마다 각 목록에서 한 번만 기여한다.
+        for mode, floor in (('documents', self.document_min_score),
+                            ('images', self.image_min_score)):
+            eligible = [r for r in records.values() if r[mode] is not None and r[mode] >= floor]
+            eligible.sort(key=lambda r: (-r[mode], r['file'].file_path.casefold(), r['file'].file_path))
+            for rank, record in enumerate(eligible, start=1):
+                contribution = 1.0 / (k + rank)
+                record['rrf'] = record.get('rrf', 0.0) + contribution
+                # 표시 모델은 RRF 기여가 큰 쪽, 동점이면 본문으로 정한다.
+                if contribution > record.get('best_contribution', 0.0):
+                    record['best_contribution'] = contribution
+                    record['source'] = mode
+
+        matches = [SearchResult(r['file'], r[r['source']], r['source'], r['rrf'],
+                                r['documents'], r['images'])
+                   for r in records.values() if 'rrf' in r]
+
+        matches.sort(key=lambda result: (-result.sort_score,
+                                         result.file.file_path.casefold(), result.file.file_path))
+        results, seen = [], set()
+        for match in matches:
+            file_hash = getattr(match.file, 'file_hash', None)
+            identity = ('hash', file_hash) if file_hash else ('path', match.file.file_path)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            results.append(match)
+            if len(results) >= top_k:
+                break
+        return results

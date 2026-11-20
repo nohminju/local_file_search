@@ -162,7 +162,7 @@ class DocumentSearchApp(ctk.CTk):
                         self.show_message("분석이 완료되었습니다. 검색어를 입력하세요.")
                 else:
                     self.show_results(result)
-                    self.status.configure(text=f"검색 결과 {len(result)}개 (점수는 정확도/확률이 아닙니다)")
+                    self.status.configure(text=f"검색 결과 {len(result)}개 (모델별 유사도이며 확률이 아닙니다)")
         except queue.Empty:
             pass
         self.after(100, self.poll_messages)
@@ -172,7 +172,9 @@ class DocumentSearchApp(ctk.CTk):
         if not results:
             self.show_message("검색 결과가 없습니다.")
             return
-        for index, (info, score) in enumerate(results):
+        for index, result in enumerate(results):
+            info, score = result
+            source = {"documents": "본문", "images": "이미지"}[result.source]
             path = str(info.file_path)
             card = ctk.CTkFrame(self.results_frame, corner_radius=8)
             card.grid(row=index, column=0, sticky="ew", padx=5, pady=5)
@@ -180,7 +182,7 @@ class DocumentSearchApp(ctk.CTk):
             name = ctk.CTkLabel(card, text=info.file_name, anchor="w", font=ctk.CTkFont(weight="bold"))
             name.grid(row=0, column=0, sticky="ew", padx=12, pady=(9, 1))
             detail = ctk.CTkLabel(
-                card, text=f"통합 순위 점수 {score:.4f}  |  {path}", anchor="w", text_color="#aab2c0"
+                card, text=f"{source} 유사도 {score:.4f}  |  {path}", anchor="w", text_color="#aab2c0"
             )
             detail.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 9))
             button = ctk.CTkButton(card, text="열기", width=58, command=lambda p=path: self.open_file(p))
