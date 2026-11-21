@@ -134,6 +134,67 @@ class FaissManager:
 
         return results
 
+    def search_combined(
+        self,
+        doc_query_vector=None,
+        img_query_vector=None,
+        top_k=5
+    ):
+        # 문서와 이미지 검색 결과를 각각 가져오기
+        doc_results = (
+            self.search_documents(doc_query_vector, top_k)
+            if doc_query_vector is not None else []
+        )
+
+        img_results = (
+            self.search_images(img_query_vector, top_k)
+            if img_query_vector is not None else []
+        )
+
+        combined = {}
+
+        # PDF와 PPTX 문서 검색 결과 추가
+        for result in doc_results:
+            chunk = result['chunk']
+
+            file_path = chunk.get('file_path', '')
+            extension = os.path.splitext(file_path)[1].lower()
+
+            if extension not in ['.pdf', '.pptx']:
+                continue
+
+            key = file_path or chunk.get('file_name', '')
+
+            if key not in combined or result['score'] > combined[key]['score']:
+                combined[key] = result
+
+        # 이미지 및 PDF/PPTX 내부 이미지 검색 결과 추가
+        for result in img_results:
+            chunk = result['chunk']
+
+            file_path = chunk.get('file_path', '')
+            extension = os.path.splitext(file_path)[1].lower()
+
+            if extension not in [
+                '.jpg', '.jpeg', '.png', '.webp',
+                '.pdf', '.pptx'
+            ]:
+                continue
+
+            key = file_path or chunk.get('file_name', '')
+
+            if key not in combined or result['score'] > combined[key]['score']:
+                combined[key] = result
+
+        # 파일별 최고 유사도 기준으로 정렬
+        results = sorted(
+            combined.values(),
+            key=lambda x: x['score'],
+            reverse=True
+        )
+
+        return results[:top_k]
+
     def compare_raw_scores(
         self,
         doc_query_vector=None,
