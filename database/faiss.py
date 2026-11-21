@@ -138,9 +138,12 @@ class FaissManager:
         self,
         doc_query_vector=None,
         img_query_vector=None,
-        top_k=5
+        top_k=5,
+        doc_min_score=0.0,
+        img_min_score=0.0,
+        rrf_k=60
     ):
-        # 문서와 이미지 검색 결과를 각각 가져오기
+        # 문서와 이미지 검색 결과 각각 가져오기
         doc_results = (
             self.search_documents(doc_query_vector, top_k)
             if doc_query_vector is not None else []
@@ -151,45 +154,67 @@ class FaissManager:
             if img_query_vector is not None else []
         )
 
+        # 원본 유사도 점수 출력
+        print("=== 원본 유사도 점수 비교 ===")
+
+        print("[문서 검색]")
+        for rank, r in enumerate(doc_results, 1):
+            print(
+                f"{rank}위 | Score: {r['score']:.4f} | "
+                f"{r['chunk']['file_name']}"
+            )
+
+        print("[이미지 검색]")
+        for rank, r in enumerate(img_results, 1):
+            print(
+                f"{rank}위 | Score: {r['score']:.4f} | "
+                f"{r['chunk']['file_name']}"
+            )
+
+        # 문서와 이미지 각각 최소 유사도 기준 적용
+        doc_filtered = [
+            (rank, r)
+            for rank, r in enumerate(doc_results, 1)
+            if r['score'] >= doc_min_score
+        ]
+
+        img_filtered = [
+            (rank, r)
+            for rank, r in enumerate(img_results, 1)
+            if r['score'] >= img_min_score
+        ]
+
+        # RRF 점수 계산 및 파일별 결과 통합
         combined = {}
 
-        # PDF와 PPTX 문서 검색 결과 추가
-        for result in doc_results:
-            chunk = result['chunk']
+        for results in [doc_filtered, img_filtered]:
+            for rank, result in results:
+                chunk = result['chunk']
 
-            file_path = chunk.get('file_path', '')
-            extension = os.path.splitext(file_path)[1].lower()
+                file_path = chunk.get('file_path', '')
+                file_name = chunk.get('file_name', '')
 
-            if extension not in ['.pdf', '.pptx']:
-                continue
+                key = file_path or file_name
 
-            key = file_path or chunk.get('file_name', '')
+                if not key:
+                    continue
 
-            if key not in combined or result['score'] > combined[key]['score']:
-                combined[key] = result
+                rrf_score = 1 / (rrf_k + rank)
 
-        # 이미지 및 PDF/PPTX 내부 이미지 검색 결과 추가
-        for result in img_results:
-            chunk = result['chunk']
+                if key not in combined:
+                    combined[key] = {
+                        "chunk": chunk,
+                        "score": result['score'],
+                        "rrf_score": rrf_score
+                    }
+                else:
+                    # 동일 파일은 하나로 통합하고 RRF 점수 누적
+                    combined[key]['rrf_score'] += rrf_score
 
-            file_path = chunk.get('file_path', '')
-            extension = os.path.splitext(file_path)[1].lower()
-
-            if extension not in [
-                '.jpg', '.jpeg', '.png', '.webp',
-                '.pdf', '.pptx'
-            ]:
-                continue
-
-            key = file_path or chunk.get('file_name', '')
-
-            if key not in combined or result['score'] > combined[key]['score']:
-                combined[key] = result
-
-        # 파일별 최고 유사도 기준으로 정렬
+        # RRF 점수 기준 내림차순 정렬
         results = sorted(
             combined.values(),
-            key=lambda x: x['score'],
+            key=lambda x: x['rrf_score'],
             reverse=True
         )
 
