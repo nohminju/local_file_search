@@ -1,17 +1,7 @@
 import torch
 import open_clip
 import numpy as np
-from deep_translator import GoogleTranslator
-
-
-def translate_ko_to_en(text: str) -> str:
-    if not text or not text.strip():
-        return text
-    try:
-        return GoogleTranslator(source='ko', target='en').translate(text)
-    except Exception as e:
-        print(f"[번역 오류] 원본 텍스트를 그대로 사용합니다: {e}")
-        return text
+from Connection.translator import translate_ko_to_en  # ← translator 부분을 실제 번역 파일 이름으로만 바꿔주세요!
 
 
 class DocumentEmbedder:
@@ -57,7 +47,7 @@ class DocumentEmbedder:
         if not query:
             return None
         
-        # 한국어 검색어를 영어로 번역 후 임베딩 (영어 입력 시 그대로 통과)
+        # Connection 폴더의 한영 번역 함수 호출 후 임베딩
         translated_query = translate_ko_to_en(query)
         return self._encode([translated_query])  # FAISS 규격에 맞춰 (1, 512) 2차원 배열로 반환
 
@@ -90,3 +80,4 @@ class DocumentEmbedder:
                     "score": score
                 })
         return results
+
