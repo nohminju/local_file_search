@@ -191,6 +191,12 @@ class DocumentSearchApp(ctk.CTk):
             pass
         self.after(100, self.poll_messages)
 
+    # [수정] 원본 유사도(0.15~0.32 구간)를 사용자에게 직관적인 백분율(0~100%)로 변환
+    @staticmethod
+    def _format_percent(score: float, min_val: float = 0.15, max_val: float = 0.32) -> float:
+        percent = (score - min_val) / (max_val - min_val) * 100.0
+        return round(min(100.0, max(0.0, percent)), 1)
+
     def show_results(self, results):
         self.clear_results()
         if not results:
@@ -199,6 +205,8 @@ class DocumentSearchApp(ctk.CTk):
         for index, result in enumerate(results):
             info, score = result
             source = {"documents": "본문", "images": "이미지"}[result.source]
+            # [수정] 원본 점수를 백분율로 변환하여 화면에 함께 표시
+            percent = self._format_percent(score)
             path = str(info.file_path)
             card = ctk.CTkFrame(self.results_frame, corner_radius=8)
             card.grid(row=index, column=0, sticky="ew", padx=5, pady=5)
@@ -206,7 +214,10 @@ class DocumentSearchApp(ctk.CTk):
             name = ctk.CTkLabel(card, text=info.file_name, anchor="w", font=ctk.CTkFont(weight="bold"))
             name.grid(row=0, column=0, sticky="ew", padx=12, pady=(9, 1))
             detail = ctk.CTkLabel(
-                card, text=f"{source} 유사도 {score:.4f}  |  {path}", anchor="w", text_color="#aab2c0"
+                card,
+                text=f"{source} 일치도 {percent:.1f}% (원본 {score:.4f})  |  {path}",
+                anchor="w",
+                text_color="#aab2c0",
             )
             detail.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 9))
             button = ctk.CTkButton(card, text="열기", width=58, command=lambda p=path: self.open_file(p))
