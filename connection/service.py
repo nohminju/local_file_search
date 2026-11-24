@@ -5,6 +5,7 @@ from math import isfinite
 from hashlib import sha256
 from pathlib import Path
 
+from connection.translator import translate_en_to_ko, translate_ko_to_en
 from database.db_info import DocumentInfo
 from file_loader.document_loader import DocumentScanner
 
@@ -117,7 +118,7 @@ class DocumentSearch:
         return documents, failures
 
     def search(self, query, top_k=5, mode='hybrid'):
-        """통합검색은 파일 종류별 원본 유사도의 최댓값으로 정렬한다."""
+        """검색 모드에 따라 원본 유사도 기준으로 정렬해 결과를 반환한다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
@@ -128,14 +129,15 @@ class DocumentSearch:
             count = len(self.vector_index.chunk_metas['doc'])
             if not count:
                 return []
-            # 본문과 같은 모델로 검색 문장을 인코딩하고 비교는 팀원 FAISS에 맡긴다.
-            query_vector = self.document_embedder.encode_query(query)
+            doc_query = translate_en_to_ko(query)
+            query_vector = self.document_embedder.encode_query(doc_query)
             hits = self.vector_index.search_documents(query_vector, top_k=count)
         elif mode == 'images':
             count = len(self.vector_index.chunk_metas['img'])
             if not count:
                 return []
-            query_vector = self.query_encoder.encode_text(query)
+            img_query = translate_ko_to_en(query)
+            query_vector = self.query_encoder.encode_text(img_query)
             hits = self.vector_index.search_images(query_vector, top_k=count)
         else:
             raise ValueError("검색 대상은 documents, images 또는 hybrid입니다.")
@@ -161,14 +163,16 @@ class DocumentSearch:
         return results
 
     def search_hybrid(self, query, top_k=5):
-        """이미지는 이미지 점수만, PDF/PPTX는 본문·이미지 중 높은 원본 점수를 쓴다."""
+        """이미지는 이미지 점수만, PDF/PPTX는 본문·이미지 중 높은 원본 유사도로 정렬한다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
+
         # 최종 결과 수를 제한하기 전에 등록 파일 전체에서 최고 점수를 찾는다.
         count = max(len(self.file_ids), top_k)
         doc_hits = self.search(query, top_k=count, mode='documents')
         image_hits = self.search(query, top_k=count, mode='images')
+
         records = {}
         image_extensions = IMAGE_EXTENSIONS
         document_extensions = DOCUMENT_EXTENSIONS
@@ -181,20 +185,38 @@ class DocumentSearch:
                     continue  # 이미지 파일에는 본문 점수를 섞지 않는다.
                 raw = float(raw)
                 if not isfinite(raw):
-                    continue  # 유효성 검사. 음수를 포함한 유한한 점수에는 하한을 두지 않는다.
-                record = records.setdefault(info.file_id, dict(file=info, documents=None, images=None))
+                    continue
+                record = records.setdefault(
+                    info.file_id,
+                    dict(file=info, documents=None, images=None)
+                )
                 previous = record[mode]
                 if previous is None or raw > previous:
                     record[mode] = raw
-        matches = []
+
+        ranked_matches = []
         for record in records.values():
-            available = [(record[mode], mode) for mode in ('documents', 'images') if record[mode] is not None]
-            score, source = max(available, key=lambda item: item[0])
-            matches.append(SearchResult(record['file'], score, source,
-                                        record['documents'], record['images']))
-        matches.sort(key=lambda r: (-r.score, r.file.file_path.casefold(), r.file.file_path))
+            available = [
+                (record[mode], mode)
+                for mode in ('documents', 'images')
+                if record[mode] is not None
+            ]
+            raw_score, source = max(available, key=lambda item: item[0])
+            result = SearchResult(
+                record['file'], raw_score, source,
+                record['documents'], record['images']
+            )
+            ranked_matches.append(result)
+
+        # 원본 유사도 내림차순으로 정렬 (동점이면 파일 경로 순)
+        ranked_matches.sort(
+            key=lambda item: (-item.score,
+                              item.file.file_path.casefold(),
+                              item.file.file_path)
+        )
+
         results, seen = [], set()
-        for match in matches:
+        for match in ranked_matches:
             file_hash = getattr(match.file, 'file_hash', None)
             identity = ('hash', file_hash) if file_hash else ('path', match.file.file_path)
             if identity in seen:
