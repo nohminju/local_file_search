@@ -17,6 +17,8 @@ class DocumentEmbedder:
             self.model.eval()
             self.tokenizer = open_clip.get_tokenizer(model_name)
             
+        # [추가] DocumentTextPreparer 연동 시 토큰 최대 길이를 참조할 수 있도록 속성 추가
+        self.max_seq_length = getattr(self.model, 'context_length', 77)
         self.chunks = []         # 임베딩된 원본 DocumentChunk 리스트
         self.embeddings = None   # 생성된 (N, 512) 2차원 벡터 배열
 
