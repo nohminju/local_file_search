@@ -2,7 +2,7 @@
 
 아래는 현재 역할 분담입니다. 파일 전체의 단독 작성자를 뜻하지 않으며, 실제 기여는 Git 이력으로 확인합니다.
 
-2026-11-25 기준: main `fc2a48d`의 팀원 변경을 수용했습니다. 팀원 파일의 추가 수정은 similarity/document_embedder.py의 번역기 import 경로뿐입니다. 2026-11-20 복원·Google 연결 설명은 활동 기록에 보존한 당시 이력입니다. 현재 번역기는 팀원 DeepL 원본을 유지하고, app.py와 service.py에서 양방향 함수를 주입합니다. 자체 본문 어댑터에서 중복 번역을 막으며 기존 원본 점수 정렬을 유지합니다.
+로컬 기준은 `document-demo-v3`의 `f9a095f`와 후속 통합 변경입니다. 팀원 코드는 FAISS를 분리했고 로컬 통합은 기존 호출부를 연결하고 본문 검색어 처리 경로를 복원했습니다.
 
 | 담당자 | 파일·영역 | 역할 |
 |---|---|---|
@@ -10,7 +10,7 @@
 | 김하은 | `file_loader/document_loader.py` | 지원 파일 수집, PDF·PPTX 본문·내부 이미지와 일반 이미지 읽기, 청크 반환 |
 | 윤소영 | `similarity/document_embedder.py`, `query_encoder/text_encoder.py` | 원본 텍스트 임베딩 모듈 담당. 현재 본문은 통합 보완한 SentenceDocumentEmbedder, 이미지 검색어는 KoreanTextEncoder 사용 |
 | 임현서 | `file_encoder/image_encoder.py`, `file_encoder/document_encoder.py` | 일반 이미지와 문서에서 추출한 이미지 인코딩 |
-| 노민주 | `database/db_info.py`, `database/manager.py`, `database/faiss.py` | 파일 자료형, SQLite 저장·조회, FAISS 인덱싱·검색·저장·복원 |
+| 노민주 | `database/db_info.py`, `database/manager.py`, `database/document_faiss.py`, `database/image_faiss.py` | 파일 자료형, SQLite, 문서·이미지별 FAISS 인덱스 |
 | 공동 | `gui/window.py` | 폴더 선택, 분석·검색 요청, 작업 상태·결과 표시, 파일 열기 |
 
 테스트·문서는 담당별 검증과 설명을 담습니다. 이수아는 전체 연결 검증과 통합 활동 기록을 정리합니다. `study/`는 Git에서 제외하는 로컬 공부 자료입니다.
@@ -37,16 +37,17 @@
 | 이미지·문서 이미지 인코더 | [hyunsli7557-ux · f86f7f8](https://github.com/Edmond1889/local_file_search/blob/f86f7f8/encoders/image_encoder.py), [b6dd0e8](https://github.com/Edmond1889/local_file_search/blob/b6dd0e8/encoders/document_encoder.py) |
 | SQLite·FAISS | [nohminju · d3a7462](https://github.com/Edmond1889/local_file_search/blob/d3a7462/database/manager.py), [2a4d883](https://github.com/Edmond1889/local_file_search/blob/2a4d883/database/faiss.py) |
 
-과거 OpenCLIP 본문 구현은 원본 API로 남아 있으나 앱의 모델 선택 분기는 제거했습니다. 현재 본문 연결 클래스(connection/sentence_document_embedder.py)가 청크 처리·보조 검색 API를 상속하며 모델 생성·벡터화·검색어 인코딩은 별도로 구현합니다. 파일명 검색은 중간 실험에서 추가했다가 제거했으므로 파일명 일치 출처를 현재 기능으로 설명하지 않습니다.
+팀원 DocumentEmbedder가 청크 처리와 검색어 한→영 번역을 담당합니다. SentenceDocumentEmbedder는 모델 생성과 `_encode()`를 구현해 같은 검색어 처리 흐름에서 ko-sroberta를 사용합니다.
 
 ## 현재 통합 코드의 책임
 
-- app.py: 두 모델과 DB·인덱스·서비스 생성, 양방향 번역 함수 주입.
-- connection/service.py: 본문/이미지 경로별 번역, 실패 시 원문 대체, 분석과 파일별 검색 결과 연결. 원본 점수 정렬 유지.
-- connection/sentence_document_embedder.py: 본문·본문 검색어의 ko-sroberta 인코딩. 서비스가 전달한 검색어를 추가 번역하지 않음.
+- `app.py`는 모델·인덱스를 조립하고 이미지 경로에 한→영 번역기를 전달합니다.
+- `connection/service.py`는 본문 검색어를 임베더에 전달하고 이미지 검색어는 번역 후 이미지 검색 인코더에 전달합니다.
+- `connection/sentence_document_embedder.py`는 팀원 `encode_query()`를 상속합니다. 문서 본문은 추출한 원문으로 인코딩합니다.
+- `database/faiss.py`는 두 팀원 인덱스에 추가·검색을 위임하고 기존 통합 저장 자료의 호환을 담당합니다.
 - connection/text_preparation.py: 모델 길이를 넘는 추출 본문의 분할. 파일명·OCR은 처리하지 않음.
 
-2026-11-20의 원본 복원과 Google 번역 연결은 [활동 기록](ACTIVITY_LOG.md)에 남아 있습니다. 현재 팀원 파일의 비교 기준은 160f055가 아니라 main fc2a48d이며, 추가 차이는 similarity/document_embedder.py의 import 경로뿐입니다. 구조 점검과 남은 한계는 [검색 안내](SEARCH_BEHAVIOR.md)의 2026-11-25 절을 참고하세요.
+과거 팀원 코드 복원과 번역기 연결 과정은 [활동 기록](ACTIVITY_LOG.md)에 보존했습니다.
 
 
 ## 이번 main 수신 변경 — 3610720 → fc2a48d
@@ -67,10 +68,10 @@ FAISS save/load는 기존 기능입니다. GUI 환산식·DeepL 번역기·FAISS
 | 파일·영역 | 로컬 통합 시 수정 |
 |---|---|
 | similarity/document_embedder.py | 팀원 코드의 번역기 import를 실제 connection.translator 경로로 수정. 팀원 파일의 추가 수정은 이것뿐 |
-| app.py | 이미지용 한→영, 본문용 영→한 번역 함수를 서비스에 전달 |
+| app.py | 이미지 검색에 한→영 번역기를 전달하고 본문 검색어는 팀원 임베더에 그대로 전달 |
 | connection/service.py | 기존 미커밋 번역 작업과 main의 충돌 해결. 주입받은 함수를 경로별로 호출하고 예외·빈 값·잘못된 반환이면 원문 사용 |
-| connection/sentence_document_embedder.py | encode_query를 별도로 구현해 ko-sroberta 본문 검색어가 부모 클래스에서 다시 영어로 번역되지 않도록 분리 |
+| connection/sentence_document_embedder.py | 팀원 encode_query를 상속해 한국어 검색어를 영어로 번역하고 ko-sroberta로 인코딩 |
 | requirements.txt·.gitignore | deepl·python-dotenv 의존성과 .env 제외 규칙 반영 |
 | 테스트·비교 도구·문서 | 번역 방향·실패 대체·중복 번역 방지 검증, 변경된 FAISS API·GUI 표시 반영. 과거 Google 평가와 현재 DeepL 연결 구분 |
 
-본문 어댑터·본문 분할·모델 공유는 이전부터 있던 연결 구조입니다. 이후 app.py 첫 줄에 들어간 실행 명령만 제거해 구문·앱 import를 확인했습니다. 팀원 파일의 추가 차이는 import 경로뿐입니다. 통합 수정은 사용자 저장소의 document-demo-v3 브랜치에서 관리합니다. 실제 main 비교 결과와 게시 상태는 MAIN_COMPARISON_2026-11-25.md 및 활동 기록을 참고하세요. 다른 PC의 설치·GUI 실행은 [README의 4번 절](../README.md#4-gui-설치와-실행)을 참고하세요.
+본문 모델과 분할·모델 공유 구조는 유지했습니다. [GUI 설치·실행](../README.md#4-gui-설치와-실행)
