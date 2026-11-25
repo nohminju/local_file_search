@@ -16,14 +16,28 @@ class RawSimilarityTests(unittest.TestCase):
         self.service.search=Mock(side_effect=[docs,images])
         return self.service.search_hybrid('query',top_k=top_k)
 
-    def test_image_files_use_only_image_score_even_if_body_hit_exists(self):
+    def test_image_files_can_use_ocr_score(self):
         for suffix in ('.jpg','.JPEG','.png','.webp'):
             with self.subTest(suffix=suffix):
                 photo=self.file(1,'/cat'+suffix)
                 result=self.search([(photo,0.99)],[(photo,0.26)])[0]
-                self.assertEqual((result.score,result.source),(0.26,'images'))
-                self.assertIsNone(result.document_score)
+                self.assertEqual((result.score,result.source),(0.99,'documents'))
+                self.assertEqual(result.document_score,0.99)
                 self.assertEqual(result.image_score,0.26)
+
+    def test_image_score_can_be_stronger_than_ocr(self):
+        photo=self.file(1,'/cat.jpg')
+        result=self.search([(photo,0.2)],[(photo,0.8)])[0]
+        self.assertEqual((result.score,result.source),(0.8,'images'))
+        self.assertEqual(result.document_score,0.2)
+        self.assertEqual(result.image_score,0.8)
+
+    def test_image_without_ocr_uses_only_image_score(self):
+        photo=self.file(1,'/cat.jpg')
+        result=self.search([],[(photo,0.26)])[0]
+        self.assertEqual((result.score,result.source),(0.26,'images'))
+        self.assertIsNone(result.document_score)
+        self.assertEqual(result.image_score,0.26)
 
     def test_pdf_and_pptx_take_maximum_not_sum(self):
         for suffix in ('.pdf','.PPTX'):

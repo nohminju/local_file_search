@@ -310,3 +310,84 @@ class ConnectionTests(unittest.TestCase):
         self.assertIsNone(self.vector_index.indices['doc'])
         self.assertEqual(self.service.search('apple', mode='documents'), [])
         self.assertEqual(self.service.search('apple')[0].source, 'images')
+
+    def test_ocr_text_is_indexed_and_searchable(self):
+        Image.new('RGB', (120, 120)).save(self.folder / 'photo.png')
+
+        self.service.ocr_extractor = Mock()
+        self.service.ocr_extractor.extract.return_value = 'apple'
+
+        self.query_encoder.encode_text.return_value = np.array([[1., 0.]])
+
+        documents, failures = self.service.analyze(self.folder)
+
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(failures, [])
+        self.service.ocr_extractor.extract.assert_called_once()
+
+        self.assertEqual(self.vector_index.indices['doc'].ntotal, 1)
+        self.assertEqual(self.vector_index.indices['img'].ntotal, 1)
+
+        metadata = self.vector_index.chunk_metas['doc'][0]
+        self.assertEqual(metadata['text'], 'apple')
+        self.assertEqual(metadata['file_name'], 'photo.png')
+
+        results = self.service.search('apple', mode='documents')
+        self.assertEqual(results[0][0].file_name, 'photo.png')
+        self.assertAlmostEqual(results[0][1], 1.0)
+
+        results = self.service.search('apple')
+        self.assertEqual(results[0].file.file_name, 'photo.png')
+        self.assertEqual(results[0].source, 'documents')
+        self.assertAlmostEqual(results[0].document_score, 1.0)
+        self.assertAlmostEqual(results[0].image_score, 0.0)
+
+    def test_empty_ocr_text_does_not_create_document_vector(self):
+        Image.new('RGB', (120, 120)).save(self.folder / 'photo.png')
+
+        self.service.ocr_extractor = Mock()
+        self.service.ocr_extractor.extract.return_value = ''
+
+        self.service.analyze(self.folder)
+
+        self.service.ocr_extractor.extract.assert_called_once()
+        self.assertIsNone(self.vector_index.indices['doc'])
+        self.assertEqual(self.vector_index.indices['img'].ntotal, 1)
+        self.assertEqual(self.service.search('apple', mode='documents'), [])
+        self.assertEqual(self.service.search('apple')[0].source, 'images')
+
+    def test_ocr_extracts_pdf_embedded_image(self):
+        Image.new('RGB', (120, 120), 'blue').save(
+            self.folder / 'scan.pdf', format='PDF'
+        )
+
+        self.service.ocr_extractor = Mock()
+        self.service.ocr_extractor.extract.return_value = 'apple'
+
+        self.service.analyze(self.folder)
+
+        self.service.ocr_extractor.extract.assert_called_once()
+        self.assertEqual(self.vector_index.indices['doc'].ntotal, 1)
+        self.assertEqual(self.vector_index.indices['img'].ntotal, 1)
+
+        results = self.service.search('apple', mode='documents')
+        self.assertEqual(results[0][0].file_name, 'scan.pdf')
+        self.assertAlmostEqual(results[0][1], 1.0)
+
+    def test_ocr_extracts_pptx_embedded_image(self):
+        self.make_documents()
+
+        self.service.ocr_extractor = Mock()
+        self.service.ocr_extractor.extract.return_value = 'apple'
+
+        self.service.analyze(self.folder)
+
+        self.assertEqual(self.service.ocr_extractor.extract.call_count, 2)
+        self.assertEqual(self.vector_index.indices['doc'].ntotal, 5)
+        self.assertEqual(self.vector_index.indices['img'].ntotal, 2)
+
+        results = self.service.search('apple', mode='documents')
+        scores = {info.file_name: score for info, score in results}
+
+        self.assertAlmostEqual(scores['banana.pptx'], 1.0)
+        self.assertAlmostEqual(scores['photo.png'], 1.0)

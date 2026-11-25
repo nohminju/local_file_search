@@ -32,6 +32,7 @@ class SharedTextEncoderTests(unittest.TestCase):
              patch('app.open_clip.get_tokenizer') as tokenizer, \
              patch('app.SentenceDocumentEmbedder') as sentence_class, \
              patch('app.DocumentTextPreparer') as prepare_class, \
+             patch('app.OCRExtractor') as ocr_class, \
              patch('app.Repository'), patch('app.FaissManager') as index_class:
             service = build_service()
             try:
@@ -47,6 +48,11 @@ class SharedTextEncoderTests(unittest.TestCase):
                 prepare_class.assert_called_once_with(sentence_class.return_value.model.tokenizer,
                                                        sentence_class.return_value.model.max_seq_length)
                 self.assertIs(service.text_preparer, prepare_class.return_value)
+
+                # OCR 모델 생성 및 서비스 연결 확인
+                ocr_class.assert_called_once_with()
+                self.assertIs(service.ocr_extractor, ocr_class.return_value)
+
                 from app import translate_ko_to_en
                 self.assertIs(service.image_query_translator, translate_ko_to_en)
                 self.assertIsNone(service.document_query_translator)

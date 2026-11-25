@@ -6,7 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from database.db_info import DocumentInfo
-from file_loader.document_loader import DocumentScanner
+from file_loader.document_loader import DocumentScanner, DocumentChunk
 
 # 팀원 스캐너의 지원 목록을 그대로 사용하고 검색 경로 분류만 서비스에서 담당한다.
 IMAGE_EXTENSIONS = DocumentScanner.SUPPORTED_EXTENSIONS & {'.jpg', '.jpeg', '.png', '.webp'}
@@ -38,11 +38,13 @@ class SearchResult:
 class DocumentSearch:
     def __init__(self, loader, image_encoder, document_encoder,
                  document_embedder, query_encoder, repository, vector_index,
-                 *, text_preparer=None, image_query_translator=None,
+                 *, text_preparer=None, ocr_extractor=None,
+                 image_query_translator=None,
                  document_query_translator=None):
         self.image_query_translator = image_query_translator
         self.document_query_translator = document_query_translator
         self.text_preparer = text_preparer
+        self.ocr_extractor = ocr_extractor
         self.loader = loader
         self.image_encoder = image_encoder
         self.document_encoder = document_encoder
@@ -95,6 +97,21 @@ class DocumentSearch:
                     raise ValueError("이미지 벡터 수와 청크 수가 일치하지 않습니다.")
                 image_vectors.extend(vectors)
                 image_chunks.extend(file_images)
+
+                 # 이미지 내부의 문자를 추출하여 문서 검색용 청크 생성
+                if self.ocr_extractor is not None:
+                    for chunk in file_images:
+                        ocr_text = self.ocr_extractor.extract(chunk.image)
+
+                        if ocr_text.strip():
+                            text_chunks.append(DocumentChunk(
+                                file_name=chunk.file_name,
+                                file_path=chunk.file_path,
+                                page_number=chunk.page_number,
+                                text=ocr_text,
+                                chunk_type="ocr",
+                                image=None
+                            ))
             text_chunks.extend(chunk for chunk in chunks if chunk.text.strip())
             documents.append(info)
 
@@ -176,7 +193,7 @@ class DocumentSearch:
         return query
 
     def search_hybrid(self, query, top_k=5):
-        """이미지는 이미지 점수만, PDF/PPTX는 본문·이미지 중 높은 원본 유사도로 정렬한다."""
+        """본문·OCR·이미지 검색 결과 중 높은 원본 유사도로 정렬한다."""
         query = query.strip()
         if not query or top_k <= 0:
             return []
@@ -194,8 +211,6 @@ class DocumentSearch:
                 extension = Path(info.file_path).suffix.lower()
                 if extension not in image_extensions | document_extensions:
                     continue
-                if mode == 'documents' and extension not in document_extensions:
-                    continue  # 이미지 파일에는 본문 점수를 섞지 않는다.
                 raw = float(raw)
                 if not isfinite(raw):
                     continue

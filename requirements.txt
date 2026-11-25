@@ -15,4 +15,11 @@ faiss-cpu
 deepl>=1.18,<2
 python-dotenv>=1,<2
 
+# 번역 및 환경 변수 관리
+deepl
+python-dotenv
+
+# 이미지 내 문자 인식(OCR)
+easyocr==1.7.2
+
 # 검증 환경: transformers 5.22.1 / sentence-transformers 6.2.0. 추가 재정렬 모델은 사용하지 않습니다.
