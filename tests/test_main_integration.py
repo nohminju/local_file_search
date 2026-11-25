@@ -31,17 +31,17 @@ class MainIntegrationTests(unittest.TestCase):
             load.assert_not_called()
 
 
-    def test_faiss_optional_floor_preserves_raw_scores_for_both_indices(self):
+    def test_faiss_returns_raw_scores_without_a_floor_for_both_indices(self):
         index = FaissManager(2, 2)
         chunks = [SimpleNamespace(file_name='a', file_path='/a', page_number=1),
                   SimpleNamespace(file_name='b', file_path='/b', page_number=1)]
         for add, search in ((index.add_documents, index.search_documents),
                             (index.add_images, index.search_images)):
-            add([[1., 0.], [0., 1.]], chunks)
-            self.assertEqual(len(search([[1., 0.]], min_score=None)), 2)
-            hits = search([[1., 0.]], min_score=0.5)
-            self.assertEqual(len(hits), 1)
+            add([[1., 0.], [-1., 0.]], chunks)
+            hits = search([[1., 0.]])
+            self.assertEqual(len(hits), 2)
             self.assertAlmostEqual(hits[0]['score'], 1.)
+            self.assertAlmostEqual(hits[1]['score'], -1.)
 
     def test_loader_normalizes_url_encoded_decomposed_korean_name(self):
         self.assertEqual(DocumentLoader()._get_clean_filename('%E1%84%80%E1%85%A1.pdf'), '가.pdf')
