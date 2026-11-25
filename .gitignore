@@ -10,6 +10,9 @@ study/.ipynb_checkpoints/
 study/
 .integration-tmp/
 .models/
+.env
+.env.*
+!.env.example
 
 # 과거 설명·원시 결과는 로컬에만 보관
 docs/archive/

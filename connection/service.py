@@ -5,7 +5,6 @@ from math import isfinite
 from hashlib import sha256
 from pathlib import Path
 
-from connection.translator import translate_en_to_ko, translate_ko_to_en
 from database.db_info import DocumentInfo
 from file_loader.document_loader import DocumentScanner
 
@@ -39,7 +38,10 @@ class SearchResult:
 class DocumentSearch:
     def __init__(self, loader, image_encoder, document_encoder,
                  document_embedder, query_encoder, repository, vector_index,
-                 *, text_preparer=None):
+                 *, text_preparer=None, image_query_translator=None,
+                 document_query_translator=None):
+        self.image_query_translator = image_query_translator
+        self.document_query_translator = document_query_translator
         self.text_preparer = text_preparer
         self.loader = loader
         self.image_encoder = image_encoder
@@ -129,15 +131,15 @@ class DocumentSearch:
             count = len(self.vector_index.chunk_metas['doc'])
             if not count:
                 return []
-            doc_query = translate_en_to_ko(query)
+            doc_query = self._translate_query(query, self.document_query_translator)
             query_vector = self.document_embedder.encode_query(doc_query)
             hits = self.vector_index.search_documents(query_vector, top_k=count)
         elif mode == 'images':
             count = len(self.vector_index.chunk_metas['img'])
             if not count:
                 return []
-            img_query = translate_ko_to_en(query)
-            query_vector = self.query_encoder.encode_text(img_query)
+            image_query = self._translate_query(query, self.image_query_translator)
+            query_vector = self.query_encoder.encode_text(image_query)
             hits = self.vector_index.search_images(query_vector, top_k=count)
         else:
             raise ValueError("검색 대상은 documents, images 또는 hybrid입니다.")
@@ -161,6 +163,17 @@ class DocumentSearch:
             if len(results) >= top_k:
                 break
         return results
+
+    @staticmethod
+    def _translate_query(query, translator):
+        if translator is not None:
+            try:
+                translated = translator(query)
+                if isinstance(translated, str) and translated.strip():
+                    return translated.strip()
+            except Exception as error:
+                print(f"[검색어 번역 오류] 원본 검색어를 사용합니다: {error}")
+        return query
 
     def search_hybrid(self, query, top_k=5):
         """이미지는 이미지 점수만, PDF/PPTX는 본문·이미지 중 높은 원본 유사도로 정렬한다."""

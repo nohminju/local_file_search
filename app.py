@@ -12,6 +12,7 @@ from database.manager import Repository
 from database.faiss import FaissManager
 from connection.service import DocumentSearch
 from connection.text_preparation import DocumentTextPreparer
+from connection.translator import translate_ko_to_en, translate_en_to_ko
 
 
 def build_service():
@@ -31,7 +32,9 @@ def build_service():
     service = DocumentSearch(DocumentLoader(), image_encoder, document_encoder,
                              document_embedder, query_encoder, repository,
                              FaissManager(doc_dim=768, img_dim=512),
-                             text_preparer=text_preparer)
+                             text_preparer=text_preparer,
+                             image_query_translator=translate_ko_to_en,
+                             document_query_translator=translate_en_to_ko)
     service.session_directory = session
     return service
 
