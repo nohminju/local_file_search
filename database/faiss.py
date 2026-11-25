@@ -91,7 +91,7 @@ class FaissManager:
 
         query = self._prep_vectors(query_vector, self.dims['doc'])
 
-        # 저장된 벡터 수를 초과하지 않도록 검색
+        # 문서 인덱스에서만 검색
         scores, indices = index.search(
             query, min(top_k, index.ntotal)
         )
@@ -117,6 +117,7 @@ class FaissManager:
 
         query = self._prep_vectors(query_vector, self.dims['img'])
 
+        # 이미지 인덱스에서만 검색
         scores, indices = index.search(
             query, min(top_k, index.ntotal)
         )
@@ -134,99 +135,13 @@ class FaissManager:
 
         return results
 
-    def search_combined(
-        self,
-        doc_query_vector=None,
-        img_query_vector=None,
-        top_k=5,
-        doc_min_score=0.0,
-        img_min_score=0.0,
-        rrf_k=60
-    ):
-        # 문서와 이미지 검색 결과 각각 가져오기
-        doc_results = (
-            self.search_documents(doc_query_vector, top_k)
-            if doc_query_vector is not None else []
-        )
-
-        img_results = (
-            self.search_images(img_query_vector, top_k)
-            if img_query_vector is not None else []
-        )
-
-        # 원본 유사도 점수 출력
-        print("=== 원본 유사도 점수 비교 ===")
-
-        print("[문서 검색]")
-        for rank, r in enumerate(doc_results, 1):
-            print(
-                f"{rank}위 | Score: {r['score']:.4f} | "
-                f"{r['chunk']['file_name']}"
-            )
-
-        print("[이미지 검색]")
-        for rank, r in enumerate(img_results, 1):
-            print(
-                f"{rank}위 | Score: {r['score']:.4f} | "
-                f"{r['chunk']['file_name']}"
-            )
-
-        # 문서와 이미지 각각 최소 유사도 기준 적용
-        doc_filtered = [
-            (rank, r)
-            for rank, r in enumerate(doc_results, 1)
-            if r['score'] >= doc_min_score
-        ]
-
-        img_filtered = [
-            (rank, r)
-            for rank, r in enumerate(img_results, 1)
-            if r['score'] >= img_min_score
-        ]
-
-        # RRF 점수 계산 및 파일별 결과 통합
-        combined = {}
-
-        for results in [doc_filtered, img_filtered]:
-            for rank, result in results:
-                chunk = result['chunk']
-
-                file_path = chunk.get('file_path', '')
-                file_name = chunk.get('file_name', '')
-
-                key = file_path or file_name
-
-                if not key:
-                    continue
-
-                rrf_score = 1 / (rrf_k + rank)
-
-                if key not in combined:
-                    combined[key] = {
-                        "chunk": chunk,
-                        "score": result['score'],
-                        "rrf_score": rrf_score
-                    }
-                else:
-                    # 동일 파일은 하나로 통합하고 RRF 점수 누적
-                    combined[key]['rrf_score'] += rrf_score
-
-        # RRF 점수 기준 내림차순 정렬
-        results = sorted(
-            combined.values(),
-            key=lambda x: x['rrf_score'],
-            reverse=True
-        )
-
-        return results[:top_k]
-
     def compare_raw_scores(
         self,
         doc_query_vector=None,
         img_query_vector=None,
         top_k=5
     ):
-        # 문서와 이미지의 원본 유사도 점수 확인용 함수
+        # 문서와 이미지의 원본 유사도 점수 각각 확인
         doc_res = (
             self.search_documents(doc_query_vector, top_k)
             if doc_query_vector is not None else []
