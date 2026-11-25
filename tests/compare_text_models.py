@@ -79,8 +79,7 @@ def main():
         embedder = SentenceDocumentEmbedder()
         embedder.embed_chunks(unique)
         index = FaissManager(doc_dim=768, img_dim=512)
-        index.indices['img'] = service.vector_index.indices['img']
-        index.chunk_metas['img'] = service.vector_index.chunk_metas['img']
+        index.images = service.vector_index.images
         index.add_documents(embedder.embeddings[positions], chunks)
         service.document_embedder = embedder
         service.vector_index = index

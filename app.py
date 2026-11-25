@@ -13,6 +13,7 @@ from database.faiss import FaissManager
 from connection.service import DocumentSearch
 from connection.text_preparation import DocumentTextPreparer
 from file_encoder.ocr_extractor import OCRExtractor
+from connection.translator import translate_ko_to_en
 
 
 def build_service():
@@ -37,7 +38,8 @@ def build_service():
                              document_embedder, query_encoder, repository,
                              FaissManager(doc_dim=768, img_dim=512),
                              text_preparer=text_preparer,
-                             ocr_extractor=ocr_extractor)
+                             ocr_extractor=ocr_extractor,
+                             image_query_translator=translate_ko_to_en)
     service.session_directory = session
     return service
 

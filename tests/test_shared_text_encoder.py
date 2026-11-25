@@ -52,5 +52,9 @@ class SharedTextEncoderTests(unittest.TestCase):
                 # OCR 모델 생성 및 서비스 연결 확인
                 ocr_class.assert_called_once_with()
                 self.assertIs(service.ocr_extractor, ocr_class.return_value)
+
+                from app import translate_ko_to_en
+                self.assertIs(service.image_query_translator, translate_ko_to_en)
+                self.assertIsNone(service.document_query_translator)
             finally:
                 service.session_directory.cleanup()

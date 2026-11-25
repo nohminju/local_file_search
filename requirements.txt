@@ -12,6 +12,8 @@ Pillow
 sentence-transformers>=3,<7
 customtkinter>=5.2,<6
 faiss-cpu
+deepl>=1.18,<2
+python-dotenv>=1,<2
 
 # 번역 및 환경 변수 관리
 deepl

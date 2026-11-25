@@ -1,139 +1,41 @@
+"""기존 서비스 API와 저장 형식을 팀원의 분리된 FAISS 인덱스에 연결한다."""
 import json
 import os
+
 import faiss
-import numpy as np
+
+from database.document_faiss import DocumentFaiss
+from database.image_faiss import ImageFaiss
 
 
 class FaissManager:
     def __init__(self, doc_dim=512, img_dim=512):
-        # 문서와 이미지 임베딩 벡터 차원 설정
-        self.dims = {'doc': doc_dim, 'img': img_dim}
+        self.documents = DocumentFaiss(doc_dim)
+        self.images = ImageFaiss(img_dim)
 
-        # 문서와 이미지 검색 인덱스 분리
-        self.indices = {'doc': None, 'img': None}
+    @property
+    def dims(self):
+        return {'doc': self.documents.dim, 'img': self.images.dim}
 
-        # FAISS 벡터 ID와 원본 메타데이터 연결
-        self.chunk_metas = {'doc': [], 'img': []}
+    @property
+    def indices(self):
+        return {'doc': self.documents.index, 'img': self.images.index}
 
-    def _prep_vectors(self, vectors, target_dim):
-        # FAISS 연산을 위한 float32 2차원 배열 변환
-        vectors = np.asarray(vectors, dtype=np.float32)
-
-        if vectors.ndim == 1:
-            vectors = vectors.reshape(1, -1)
-
-        if vectors.ndim != 2 or vectors.shape[1] != target_dim:
-            raise ValueError(
-                f"차원 불일치 (기대: {target_dim}, 입력: {vectors.shape})"
-            )
-
-        # L2 정규화 후 내적을 통해 코사인 유사도 계산
-        faiss.normalize_L2(vectors)
-
-        return vectors
+    @property
+    def chunk_metas(self):
+        return {'doc': self.documents.chunk_metas, 'img': self.images.chunk_metas}
 
     def add_documents(self, vectors, chunks):
-        if len(vectors) != len(chunks):
-            raise ValueError("벡터 수와 청크 수가 일치하지 않습니다.")
-
-        if len(vectors) == 0:
-            return
-
-        vectors = self._prep_vectors(vectors, self.dims['doc'])
-
-        # 문서 인덱스 생성
-        if self.indices['doc'] is None:
-            self.indices['doc'] = faiss.IndexFlatIP(
-                self.dims['doc']
-            )
-
-        self.indices['doc'].add(vectors)
-
-        # 검색 결과와 원본 문서 정보 연결
-        for c in chunks:
-            self.chunk_metas['doc'].append({
-                "file_name": getattr(c, 'file_name', ''),
-                "file_path": getattr(c, 'file_path', ''),
-                "page_number": getattr(c, 'page_number', 1),
-                "text": getattr(c, 'text', '')
-            })
+        self.documents.add_documents(vectors, chunks)
 
     def add_images(self, vectors, chunks):
-        if len(vectors) != len(chunks):
-            raise ValueError("벡터 수와 청크 수가 일치하지 않습니다.")
-
-        if len(vectors) == 0:
-            return
-
-        vectors = self._prep_vectors(vectors, self.dims['img'])
-
-        # 이미지 인덱스 생성
-        if self.indices['img'] is None:
-            self.indices['img'] = faiss.IndexFlatIP(
-                self.dims['img']
-            )
-
-        self.indices['img'].add(vectors)
-
-        # 검색 결과와 원본 이미지 정보 연결
-        for c in chunks:
-            self.chunk_metas['img'].append({
-                "file_name": getattr(c, 'file_name', ''),
-                "file_path": getattr(c, 'file_path', ''),
-                "page_number": getattr(c, 'page_number', 1)
-            })
+        self.images.add_images(vectors, chunks)
 
     def search_documents(self, query_vector, top_k=5):
-        index = self.indices['doc']
-
-        if index is None or index.ntotal == 0 or top_k <= 0:
-            return []
-
-        query = self._prep_vectors(query_vector, self.dims['doc'])
-
-        # 문서 인덱스에서만 검색
-        scores, indices = index.search(
-            query, min(top_k, index.ntotal)
-        )
-
-        results = []
-
-        for score, idx in zip(scores[0], indices[0]):
-            if idx < 0:
-                continue
-
-            results.append({
-                "chunk": self.chunk_metas['doc'][idx],
-                "score": float(score)
-            })
-
-        return results
+        return self.documents.search_documents(query_vector, top_k)
 
     def search_images(self, query_vector, top_k=5):
-        index = self.indices['img']
-
-        if index is None or index.ntotal == 0 or top_k <= 0:
-            return []
-
-        query = self._prep_vectors(query_vector, self.dims['img'])
-
-        # 이미지 인덱스에서만 검색
-        scores, indices = index.search(
-            query, min(top_k, index.ntotal)
-        )
-
-        results = []
-
-        for score, idx in zip(scores[0], indices[0]):
-            if idx < 0:
-                continue
-
-            results.append({
-                "chunk": self.chunk_metas['img'][idx],
-                "score": float(score)
-            })
-
-        return results
+        return self.images.search_images(query_vector, top_k)
 
     def compare_raw_scores(
         self,
@@ -262,6 +164,9 @@ class FaissManager:
                 )
 
         # 검증 완료 후 인덱스 정보 적용
-        self.dims = dims
-        self.chunk_metas = chunk_metas
-        self.indices = indices
+        self.documents = DocumentFaiss(dims['doc'])
+        self.images = ImageFaiss(dims['img'])
+        self.documents.index = indices['doc']
+        self.images.index = indices['img']
+        self.documents.chunk_metas = chunk_metas['doc']
+        self.images.chunk_metas = chunk_metas['img']
