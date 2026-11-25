@@ -1,3 +1,7 @@
+# 원본 main 방식 비교 폴더
+
+이 폴더의 실행·비교 방법은 [COMPARE_GUIDE.md](COMPARE_GUIDE.md)를 먼저 읽으세요. 아래는 원본 main의 기존 README입니다. 현재 v3 통합본 설명과 구분합니다.
+
 # Local File Search
 
 PDF·PPTX의 본문과 내부 이미지, 일반 이미지 파일을 문장으로 검색하는 로컬 프로그램입니다.

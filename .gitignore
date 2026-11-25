@@ -14,3 +14,8 @@ study/
 # 과거 설명·원시 결과는 로컬에만 보관
 docs/archive/
 docs/records/
+
+# Personal API settings
+.env
+.env.*
+!.env.example

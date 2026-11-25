@@ -14,3 +14,7 @@ customtkinter>=5.2,<6
 faiss-cpu
 
 # 검증 환경: transformers 5.22.1 / sentence-transformers 6.2.0. 추가 재정렬 모델은 사용하지 않습니다.
+
+# Runtime dependencies required by the main DeepL translator
+deepl>=1.18,<2
+python-dotenv>=1,<2
