@@ -12,6 +12,7 @@ from database.manager import Repository
 from database.faiss import FaissManager
 from connection.service import DocumentSearch
 from connection.text_preparation import DocumentTextPreparer
+from file_encoder.ocr_extractor import OCRExtractor
 
 
 def build_service():
@@ -26,12 +27,17 @@ def build_service():
     document_embedder = SentenceDocumentEmbedder()
     text_preparer = DocumentTextPreparer(document_embedder.model.tokenizer,
                                          document_embedder.model.max_seq_length)
+
+    # OCR 모델 생성
+    ocr_extractor = OCRExtractor()
+
     session = TemporaryDirectory(prefix='document-search-')
     repository = Repository(str(Path(session.name) / 'document_metadata.db'))
     service = DocumentSearch(DocumentLoader(), image_encoder, document_encoder,
                              document_embedder, query_encoder, repository,
                              FaissManager(doc_dim=768, img_dim=512),
-                             text_preparer=text_preparer)
+                             text_preparer=text_preparer,
+                             ocr_extractor=ocr_extractor)
     service.session_directory = session
     return service
 
