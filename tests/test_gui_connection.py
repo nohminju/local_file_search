@@ -10,6 +10,11 @@ from gui.window import DocumentSearchApp
 
 
 class GuiConnectionTests(unittest.TestCase):
+    def test_display_percent_clamps_without_changing_raw_score(self):
+        for score, expected in ((-0.1, 0.), (0.15, 0.), (0.235, 50.), (0.32, 100.), (0.9, 100.)):
+            with self.subTest(score=score):
+                self.assertEqual(DocumentSearchApp._format_percent(score), expected)
+
     def make_app(self):
         app = object.__new__(DocumentSearchApp)
         app.folder = 'documents'
@@ -86,7 +91,7 @@ class GuiConnectionTests(unittest.TestCase):
              patch('gui.window.ctk.CTkButton'), patch('gui.window.ctk.CTkFont'):
             DocumentSearchApp.show_results(app, [result])
         texts = [call.kwargs.get('text', '') for call in label.call_args_list]
-        self.assertTrue(any('이미지 유사도 0.2607' in text for text in texts))
+        self.assertTrue(any('이미지 일치도 65.1% (원본 0.2607)' in text for text in texts))
         self.assertFalse(any('0.0759' in text for text in texts))
 
 
@@ -115,7 +120,7 @@ class GuiConnectionTests(unittest.TestCase):
             DocumentSearchApp.show_results(app, [ScoredFile(info, 0.9, 'documents')])
         texts = [call.kwargs.get('text', '') for call in label.call_args_list]
         self.assertIn('persona.pptx', texts)
-        self.assertTrue(any('본문 유사도 0.9000' in text for text in texts))
+        self.assertTrue(any('본문 일치도 100.0% (원본 0.9000)' in text for text in texts))
         self.assertFalse(any('파일명 유사도' in text or '재정렬' in text for text in texts))
 
     def test_busy_state_disables_mode_switch(self):

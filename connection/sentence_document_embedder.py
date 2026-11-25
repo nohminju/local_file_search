@@ -22,3 +22,10 @@ class SentenceDocumentEmbedder(DocumentEmbedder):
                                     convert_to_numpy=True, normalize_embeddings=True,
                                     show_progress_bar=False)
         return np.asarray(vectors, dtype=np.float32)
+
+    def encode_query(self, query):
+        # 검색어 번역은 서비스가 담당한다. 부모의 OpenCLIP용 영문 번역을 상속하지 않는다.
+        query = query.strip()
+        if not query:
+            return None
+        return self._encode([query])

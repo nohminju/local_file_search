@@ -8,6 +8,16 @@ from connection.sentence_document_embedder import SentenceDocumentEmbedder
 
 
 class SentenceDocumentEmbedderTests(unittest.TestCase):
+    def test_korean_query_does_not_use_parent_english_translation(self):
+        model = Mock()
+        model.encode.return_value = np.array([[1., 0.]])
+        encoder = SentenceDocumentEmbedder(model=model)
+        with patch('similarity.document_embedder.translate_ko_to_en') as translate:
+            vector = encoder.encode_query(' 고양이 ')
+        translate.assert_not_called()
+        self.assertEqual(vector.shape, (1, 2))
+        self.assertEqual(model.encode.call_args.args[0], ['고양이'])
+
     def test_same_model_encodes_body_and_query_with_normalization(self):
         model = Mock()
         model.encode.side_effect = [np.array([[1., 0.], [0., 1.]]), np.array([[0., 1.]])]

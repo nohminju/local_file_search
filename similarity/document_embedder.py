@@ -2,11 +2,7 @@ import torch
 import open_clip
 import numpy as np
 
-# 파일 위치(Connection 안/밖) 상관없이 번역기 자동 연결
-try:
-    from Connection.translator import translate_ko_to_en
-except ImportError:
-    from translator import translate_ko_to_en
+from connection.translator import translate_ko_to_en
 
 
 class DocumentEmbedder:

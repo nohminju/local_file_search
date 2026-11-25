@@ -2,6 +2,8 @@
 
 아래는 현재 역할 분담입니다. 파일 전체의 단독 작성자를 뜻하지 않으며, 실제 기여는 Git 이력으로 확인합니다.
 
+2026-11-25 기준: main `fc2a48d`의 팀원 변경을 수용했습니다. 팀원 파일의 추가 수정은 similarity/document_embedder.py의 번역기 import 경로뿐입니다. 2026-11-20 복원·Google 연결 설명은 활동 기록에 보존한 당시 이력입니다. 현재 번역기는 팀원 DeepL 원본을 유지하고, app.py와 service.py에서 양방향 함수를 주입합니다. 자체 본문 어댑터에서 중복 번역을 막으며 기존 원본 점수 정렬을 유지합니다.
+
 | 담당자 | 파일·영역 | 역할 |
 |---|---|---|
 | 이수아 | `app.py`, `connection/service.py` | 모듈 생성·모델 공유, 분석·검색 연결, 경로와 DB ID 연결, 파일별 중복 제거·결과 수 제한·읽기 실패 반환 |
@@ -19,9 +21,9 @@
 - 일반 사진과 문서 내부 그림은 같은 ImageEncoder를 사용합니다. DocumentEncoder는 그림 전달용 래퍼이며 PDF/PPTX의 글은 DocumentLoader가 별도로 추출합니다.
 - connection/text_preparation.py는 추출 본문만 126토큰·32토큰 겹침으로 나눕니다. 파일명은 임베딩하지 않습니다.
 - 서비스는 일반 이미지에 이미지 점수만, PDF/PPTX에 본문·이미지 중 높은 원본 점수를 적용합니다. 하한·합산·RRF·재정렬 모델은 쓰지 않습니다. 통합 결과는 내용 해시로 묶고 점수 동점은 경로로 정합니다.
-- GUI는 통합검색·이미지 검색·본문 검색을 선택하며 콘솔은 기본 통합검색입니다. DocumentEmbedder.search()와 FAISS의 선택적 min_score·compare_raw_scores()는 앱 검색에서 호출하거나 지정하지 않습니다.
+- GUI는 통합검색·이미지 검색·본문 검색을 선택하며 콘솔은 기본 통합검색입니다. DocumentEmbedder.search()와 FAISS의 search_combined()·compare_raw_scores()는 앱 검색에서 호출하지 않습니다. 최신 FAISS 개별 검색은 min_score 인자가 없습니다.
 - SQLite는 임시 DB이고 FAISS는 메모리 인덱스입니다. save/load 함수는 앱에 연결하지 않았습니다. 연결하려면 파일 정보·벡터·경로별 DB ID를 함께 복원해야 합니다.
-- 현재 본문 모델·분할·연결·테스트의 추가 보완은 사용자 요청에 따른 AI 통합 작업입니다. 원본 팀원 모듈 작성과 구분합니다. [최신 검색 기준](SEARCH_BEHAVIOR.md), [이번 주 기여와 오늘 통합 문제](INTEGRATION_NOTES_2026-11-20.md)를 참고하세요.
+- 현재 본문 모델·분할·연결·테스트의 추가 보완은 사용자 요청에 따른 AI 통합 작업입니다. 원본 팀원 모듈 작성과 구분합니다. [최신 검색 기준](SEARCH_BEHAVIOR.md), [2026-11-16~20 기여와 통합 문제](INTEGRATION_NOTES_2026-11-20.md)를 참고하세요.
 
 ## 원본 기여 참고
 
@@ -35,13 +37,40 @@
 | 이미지·문서 이미지 인코더 | [hyunsli7557-ux · f86f7f8](https://github.com/Edmond1889/local_file_search/blob/f86f7f8/encoders/image_encoder.py), [b6dd0e8](https://github.com/Edmond1889/local_file_search/blob/b6dd0e8/encoders/document_encoder.py) |
 | SQLite·FAISS | [nohminju · d3a7462](https://github.com/Edmond1889/local_file_search/blob/d3a7462/database/manager.py), [2a4d883](https://github.com/Edmond1889/local_file_search/blob/2a4d883/database/faiss.py) |
 
-과거 OpenCLIP 본문 구현은 원본 API로 남아 있으나 앱의 모델 선택 분기는 제거했습니다. 현재 본문 연결 클래스(connection/sentence_document_embedder.py)가 원본 API를 상속해 사용합니다. 파일명 검색은 중간 실험에서 추가했다가 제거했으므로 파일명 일치 출처를 현재 기능으로 설명하지 않습니다.
+과거 OpenCLIP 본문 구현은 원본 API로 남아 있으나 앱의 모델 선택 분기는 제거했습니다. 현재 본문 연결 클래스(connection/sentence_document_embedder.py)가 청크 처리·보조 검색 API를 상속하며 모델 생성·벡터화·검색어 인코딩은 별도로 구현합니다. 파일명 검색은 중간 실험에서 추가했다가 제거했으므로 파일명 일치 출처를 현재 기능으로 설명하지 않습니다.
+
+## 현재 통합 코드의 책임
+
+- app.py: 두 모델과 DB·인덱스·서비스 생성, 양방향 번역 함수 주입.
+- connection/service.py: 본문/이미지 경로별 번역, 실패 시 원문 대체, 분석과 파일별 검색 결과 연결. 원본 점수 정렬 유지.
+- connection/sentence_document_embedder.py: 본문·본문 검색어의 ko-sroberta 인코딩. 서비스가 전달한 검색어를 추가 번역하지 않음.
+- connection/text_preparation.py: 모델 길이를 넘는 추출 본문의 분할. 파일명·OCR은 처리하지 않음.
+
+2026-11-20의 원본 복원과 Google 번역 연결은 [활동 기록](ACTIVITY_LOG.md)에 남아 있습니다. 현재 팀원 파일의 비교 기준은 160f055가 아니라 main fc2a48d이며, 추가 차이는 similarity/document_embedder.py의 import 경로뿐입니다. 구조 점검과 남은 한계는 [검색 안내](SEARCH_BEHAVIOR.md)의 2026-11-25 절을 참고하세요.
 
 
-## 팀원 파일 원본 복원 — 2026-11-20 최종 반영
+## 이번 main 수신 변경 — 3610720 → fc2a48d
 
-사용자 요청으로 팀원 파일 5개(database/faiss.py, file_encoder/document_encoder.py, file_loader/document_loader.py, query_encoder/text_encoder.py, similarity/document_embedder.py)를 원본 PR #27 병합 직전 160f055와 동일하게 복원했습니다. 팀원 담당 디렉터리에 AI가 추가한 본문 어댑터도 남기지 않도록 connection/sentence_document_embedder.py로 옮겼습니다. 긴 본문 분할은 connection/text_preparation.py에 유지합니다.
+| 담당·파일 | main에서 받은 변경 |
+|---|---|
+| 김하은 · connection/translator.py | Google을 DeepL 양방향 번역으로 교체. 한→영·영→한 함수, .env API 키 로딩, lru_cache 캐시, 단독 영단어가 그대로 반환될 때 관사를 붙여 재시도 추가 |
+| 김하은 · connection/service.py | 본문용 영→한, 이미지용 한→영 번역 연결. 원본 유사도 최댓값 정렬은 유지 |
+| 윤소영(duoloo) · similarity/document_embedder.py | 검색어 인코딩 전 한→영 번역과 모델 입력 길이 속성 추가 |
+| 윤소영(duoloo) · gui/window.py | 원본 점수만 표시하던 결과 카드에 환산 일치도 %와 원본 유사도를 함께 표시 |
+| 노민주 · database/faiss.py | 개별 검색의 min_score 인자 제거, 하한·RRF 방식의 search_combined 보조 함수 추가, 벡터 배열 차원 검사 보완 |
+| 노민주 · database/manager.py | DB 처리 설명·주석 보강. 이번 차이에서 실행 동작 변경은 없음 |
 
-본문 ko-sroberta와 이미지 OpenCLIP 분리는 연결 모듈에서 유지하며 app.py가 FAISS 차원을 명시합니다. 원본 FAISS의 기본 본문 차원은 512지만 앱은 본문용 768을 전달합니다. 원본 FAISS는 chunk_type을 메타데이터로 저장하지 않으므로 과거 filename 메타데이터 보호 조건은 키가 있을 때만 동작합니다. 현재 앱은 메모리 인덱스를 새로 만들고 파일명을 인코딩하지 않습니다.
+FAISS save/load는 기존 기능입니다. GUI 환산식·DeepL 번역기·FAISS 알고리즘은 수신한 팀원 구현을 유지했습니다. 표의 작성자는 이번 Git 커밋 기준이며 파일 전체의 단독 작성자를 뜻하지 않습니다.
 
-이 복원 이후 테스트 결과는 ACTIVITY_LOG에 추가합니다. 이전 실모델 수치는 복원 전 실행의 기록이며 새 실행 결과로 표현하지 않습니다. 앞서 서술된 팀원 파일 수정은 작업 과정의 이력이고 최종 차이에서는 제거합니다. 현재 원본 파일과 연결 코드의 구분은 이 절을 기준으로 합니다.
+## 이번 로컬 통합 수정 — fc2a48d 대비
+
+| 파일·영역 | 로컬 통합 시 수정 |
+|---|---|
+| similarity/document_embedder.py | 팀원 코드의 번역기 import를 실제 connection.translator 경로로 수정. 팀원 파일의 추가 수정은 이것뿐 |
+| app.py | 이미지용 한→영, 본문용 영→한 번역 함수를 서비스에 전달 |
+| connection/service.py | 기존 미커밋 번역 작업과 main의 충돌 해결. 주입받은 함수를 경로별로 호출하고 예외·빈 값·잘못된 반환이면 원문 사용 |
+| connection/sentence_document_embedder.py | encode_query를 별도로 구현해 ko-sroberta 본문 검색어가 부모 클래스에서 다시 영어로 번역되지 않도록 분리 |
+| requirements.txt·.gitignore | deepl·python-dotenv 의존성과 .env 제외 규칙 반영 |
+| 테스트·비교 도구·문서 | 번역 방향·실패 대체·중복 번역 방지 검증, 변경된 FAISS API·GUI 표시 반영. 과거 Google 평가와 현재 DeepL 연결 구분 |
+
+본문 어댑터·본문 분할·모델 공유는 이전부터 있던 연결 구조입니다. 이후 app.py 첫 줄에 들어간 실행 명령만 제거해 구문·앱 import를 확인했습니다. 팀원 파일의 추가 차이는 import 경로뿐입니다. 통합 수정은 document-demo-v3 로컬 브랜치에서 관리하며 원격 push는 하지 않았습니다. 다른 PC의 설치·GUI 실행은 [README의 4번 절](../README.md#4-gui-설치와-실행)을 참고하세요.
