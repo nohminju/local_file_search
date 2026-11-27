@@ -14,7 +14,7 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 
-SEARCH_MODES = {'통합검색': 'hybrid', '이미지 검색': 'images', '본문 검색': 'documents'}
+SEARCH_MODES = {'이미지 검색': 'images', '본문 검색': 'documents'}
 
 
 class DocumentSearchApp(ctk.CTk):
@@ -26,7 +26,7 @@ class DocumentSearchApp(ctk.CTk):
         self.service = None
         self.folder = ""
         self.busy = False
-        self.active_search_mode = 'hybrid'
+        self.active_search_mode = 'documents'
         self.messages = queue.Queue()
         self.tasks = queue.Queue()
         threading.Thread(target=self.worker_loop, daemon=True).start()
@@ -61,7 +61,7 @@ class DocumentSearchApp(ctk.CTk):
         search_row.grid_columnconfigure(0, weight=1)
         self.mode_selector = ctk.CTkSegmentedButton(
             search_row, values=list(SEARCH_MODES), command=self.on_mode_change)
-        self.mode_selector.set('통합검색')
+        self.mode_selector.set('본문 검색')
         self.mode_selector.grid(row=0, column=0, columnspan=2, sticky='w', pady=(0, 8))
         self.query_entry = ctk.CTkEntry(
             search_row, height=42, placeholder_text="찾고 싶은 파일의 내용을 입력하세요"
@@ -103,9 +103,7 @@ class DocumentSearchApp(ctk.CTk):
 
     def on_mode_change(self, label):
         self.clear_results()
-        if label == '통합검색':
-            text = '통합검색: 이미지 점수 또는 문서의 본문·이미지 중 높은 원본 점수순'
-        elif label == '본문 검색':
+        if label == '본문 검색':
             text = '본문 검색: 추출한 글의 원본 점수순 상위 5개 (파일명 제외·하한 미적용)'
         else:
             text = '이미지 검색: 원본 점수순 상위 5개 (하한 미적용)'
@@ -162,9 +160,7 @@ class DocumentSearchApp(ctk.CTk):
         self.active_search_mode = SEARCH_MODES[self.mode_selector.get()]
         self.run_worker(self.search_job, query, self.active_search_mode)
 
-    def search_job(self, query, mode='hybrid'):
-        if mode == 'hybrid':
-            return self.service.search(query)
+    def search_job(self, query, mode='documents'):
         return self.service.search(query, mode=mode)
 
     def poll_messages(self):
@@ -185,8 +181,7 @@ class DocumentSearchApp(ctk.CTk):
                 else:
                     self.show_results(result)
                     label = next(label for label, mode in SEARCH_MODES.items() if mode == self.active_search_mode)
-                    rule = '파일별 최고 원본 점수·하한 미적용' if self.active_search_mode == 'hybrid' else '원본 점수순·하한 미적용'
-                    self.status.configure(text=f"{label}: {len(result)}개 ({rule}, 유사도는 확률이 아닙니다)")
+                    self.status.configure(text=f"{label}: {len(result)}개 (원본 점수순·하한 미적용, 유사도는 확률이 아닙니다)")
         except queue.Empty:
             pass
         self.after(100, self.poll_messages)
@@ -224,7 +219,6 @@ class DocumentSearchApp(ctk.CTk):
             button.grid(row=0, column=1, rowspan=2, padx=12)
             for widget in (card, name, detail):
                 widget.bind("<Double-Button-1>", lambda event, p=path: self.open_file(p))
-
 
     def open_file(self, path):
         if not Path(path).is_file():
